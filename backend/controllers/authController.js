@@ -465,6 +465,180 @@ const getApprovedResidents = async (req, res) => {
   }
 };
 
+// @desc    Get resident dashboard stats and metrics
+// @route   GET /api/auth/resident-dashboard-stats
+// @access  Private (Homeowner / Tenant)
+const getResidentDashboardStats = async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    // 1. Pending complaints count
+    const [pendingComplaintsRes] = await pool.query(
+      "SELECT COUNT(*) AS count FROM complaints WHERE user_id = ? AND status IN ('pending', 'in_progress')",
+      [userId]
+    );
+    const pendingComplaints = pendingComplaintsRes[0]?.count || 0;
+
+    // 2. Urgent complaints count
+    const [urgentComplaintsRes] = await pool.query(
+      "SELECT COUNT(*) AS count FROM complaints WHERE user_id = ? AND priority = 'high' AND status IN ('pending', 'in_progress')",
+      [userId]
+    );
+    const urgentComplaints = urgentComplaintsRes[0]?.count || 0;
+
+    // 3. Upcoming bookings count
+    const [upcomingBookingsRes] = await pool.query(
+      "SELECT COUNT(*) AS count FROM facility_reservations WHERE user_id = ? AND status = 'approved' AND date >= CURDATE()",
+      [userId]
+    );
+    const upcomingBookings = upcomingBookingsRes[0]?.count || 0;
+
+    // 4. Next booking details
+    const [nextBookingRes] = await pool.query(
+      "SELECT facility_name, date FROM facility_reservations WHERE user_id = ? AND status = 'approved' AND date >= CURDATE() ORDER BY date ASC LIMIT 1",
+      [userId]
+    );
+    const nextBooking = nextBookingRes[0] || null;
+
+    // 5. Pending payments sum
+    const [pendingPaymentsRes] = await pool.query(
+      `SELECT SUM(b.amount) AS total FROM bills b 
+       JOIN units u ON b.unit_id = u.id 
+       WHERE (u.owner_id = ? OR u.tenant_id = ?) AND b.status = 'unpaid'`,
+      [userId, userId]
+    );
+    const pendingPayments = pendingPaymentsRes[0]?.total || 0;
+
+    // 6. Next payment due date
+    const [nextPaymentDueRes] = await pool.query(
+      `SELECT b.due_date FROM bills b 
+       JOIN units u ON b.unit_id = u.id 
+       WHERE (u.owner_id = ? OR u.tenant_id = ?) AND b.status = 'unpaid' 
+       ORDER BY b.due_date ASC LIMIT 1`,
+      [userId, userId]
+    );
+    const nextPaymentDue = nextPaymentDueRes[0]?.due_date || null;
+
+    // 7. Active notices count
+    const [activeNoticesRes] = await pool.query("SELECT COUNT(*) AS count FROM notices");
+    const activeNotices = activeNoticesRes[0]?.count || 0;
+
+    // 8. Latest notices (3)
+    const [latestNotices] = await pool.query(
+      `SELECT n.*, u.email AS author_email FROM notices n 
+       JOIN users u ON n.created_by = u.id 
+       ORDER BY n.created_at DESC LIMIT 3`
+    );
+
+    // 9. My complaints (3)
+    const [myComplaints] = await pool.query(
+      "SELECT * FROM complaints WHERE user_id = ? ORDER BY created_at DESC LIMIT 3",
+      [userId]
+    );
+
+    // 10. My bills (5)
+    const [myBills] = await pool.query(
+      `SELECT b.*, u.block_name, u.unit_number FROM bills b 
+       JOIN units u ON b.unit_id = u.id 
+       WHERE (u.owner_id = ? OR u.tenant_id = ?) 
+       ORDER BY b.due_date DESC LIMIT 5`,
+      [userId, userId]
+    );
+
+    // 11. Compile timeline activities
+    const [userComplaints] = await pool.query(
+      "SELECT id, category, created_at, status FROM complaints WHERE user_id = ? ORDER BY created_at DESC LIMIT 3",
+      [userId]
+    );
+
+    const [userBookings] = await pool.query(
+      "SELECT id, facility_name, date, status, created_at FROM facility_reservations WHERE user_id = ? ORDER BY created_at DESC LIMIT 3",
+      [userId]
+    );
+
+    const [userPayments] = await pool.query(
+      `SELECT b.id, b.amount, b.description, b.status, b.created_at FROM bills b 
+       JOIN units u ON b.unit_id = u.id 
+       WHERE (u.owner_id = ? OR u.tenant_id = ?) 
+       ORDER BY b.created_at DESC LIMIT 3`,
+      [userId, userId]
+    );
+
+    const activities = [];
+
+    userComplaints.forEach((c) => {
+      activities.push({
+        id: `complaint_${c.id}`,
+        title: 'Complaint submitted',
+        message: `${c.category} request submitted (Status: ${c.status})`,
+        created_at: c.created_at,
+        type: 'complaint'
+      });
+    });
+
+    userBookings.forEach((b) => {
+      activities.push({
+        id: `booking_${b.id}`,
+        title: b.status === 'approved' ? 'Booking confirmed' : 'Booking requested',
+        message: `${b.facility_name} reserved for ${new Date(b.date).toLocaleDateString()} (${b.status})`,
+        created_at: b.created_at,
+        type: 'booking'
+      });
+    });
+
+    userPayments.forEach((p) => {
+      activities.push({
+        id: `payment_${p.id}`,
+        title: p.status === 'paid' ? 'Invoice paid' : 'Invoice generated',
+        message: `${p.description} - $${p.amount} (${p.status})`,
+        created_at: p.created_at,
+        type: 'payment'
+      });
+    });
+
+    activities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return res.status(200).json({
+      metrics: {
+        pendingComplaints,
+        urgentComplaints,
+        upcomingBookings,
+        pendingPayments,
+        activeNotices,
+        nextBooking,
+        nextPaymentDue
+      },
+      latestNotices,
+      myComplaints,
+      myBills,
+      activities: activities.slice(0, 5)
+    });
+  } catch (error) {
+    console.error('Get resident dashboard stats error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// @desc    Update resident profile details
+// @route   PUT /api/auth/profile
+// @access  Private (All Roles)
+const updateProfile = async (req, res) => {
+  const { full_name, phone_number, vehicle_number } = req.body;
+  const userId = req.user.id;
+
+  try {
+    await pool.query(
+      'UPDATE users SET full_name = ?, phone_number = ?, vehicle_number = ? WHERE id = ?',
+      [full_name || null, phone_number || null, vehicle_number || null, userId]
+    );
+
+    return res.status(200).json({ message: 'Profile updated successfully.' });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -472,5 +646,7 @@ module.exports = {
   approveUser,
   getApprovedHomeowners,
   getAdminDashboardStats,
-  getApprovedResidents
+  getApprovedResidents,
+  getResidentDashboardStats,
+  updateProfile
 };

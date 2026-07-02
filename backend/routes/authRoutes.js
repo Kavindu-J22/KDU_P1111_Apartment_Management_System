@@ -7,7 +7,9 @@ const {
   approveUser,
   getApprovedHomeowners,
   getAdminDashboardStats,
-  getApprovedResidents
+  getApprovedResidents,
+  getResidentDashboardStats,
+  updateProfile
 } = require('../controllers/authController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
@@ -18,5 +20,7 @@ router.get('/pending-approvals', verifyToken, getPendingApprovals);
 router.post('/approve', verifyToken, approveUser);
 router.get('/admin-dashboard-stats', verifyToken, getAdminDashboardStats);
 router.get('/residents', verifyToken, getApprovedResidents);
+router.get('/resident-dashboard-stats', verifyToken, getResidentDashboardStats);
+router.put('/profile', verifyToken, updateProfile);
 
 module.exports = router;

@@ -1,33 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
-  Home, FileText, Wrench, Compass, Calendar, Users, Plus, Check, X, ShieldAlert, CreditCard
+  LayoutDashboard, ClipboardList, Compass, FileText, Plus, Users, 
+  Bell, Settings, Check, X, Search, Calendar, User, Clock, CreditCard, 
+  Lock, Megaphone, ShieldAlert, ChevronDown, ChevronRight, Wrench, Edit3, Building
 } from 'lucide-react';
 
 export default function ResidentDashboard() {
   const { api, user } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Data States
+  // Stats / Overview Data
+  const [residentStats, setResidentStats] = useState(null);
+
+  // Tab Data States
   const [myUnit, setMyUnit] = useState(null);
   const [bills, setBills] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [reservations, setReservations] = useState([]);
-  const [parkingSlots, setParkingSlots] = useState([]); // All slots to find available guest slots
-  const [myParking, setMyParking] = useState([]); // User's active parking slots
-  const [notices, setNotices] = useState([]);
-  const [pendingTenants, setPendingTenants] = useState([]); // Homeowner only
+  const [parkingSlots, setParkingSlots] = useState([]); // available guest slots dropdown
+  const [myParking, setMyParking] = useState([]); // user's active parking slots
+  const [pendingTenants, setPendingTenants] = useState([]); // homeowner only
 
   // Input states
-  const [complaintForm, setComplaintForm] = useState({ category: '', description: '', priority: 'medium' });
-  const [bookingForm, setBookingForm] = useState({ facility_name: 'Rooftop Lounge', date: '' });
+  const [complaintForm, setComplaintForm] = useState({ category: 'Plumbing', description: '', priority: 'medium' });
+  const [bookingForm, setBookingForm] = useState({ facility_name: 'Swimming Pool Annex', date: '' });
   const [parkingForm, setParkingForm] = useState({ slot_number: '', guest_date: '' });
 
+  // Profile Edit Form States
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({ full_name: '', phone_number: '', vehicle_number: '' });
+
+  // New Request popup shortcut
+  const [showNewRequestMenu, setShowNewRequestMenu] = useState(false);
+
+  // Mock registrations state for events
+  const [registeredEvents, setRegisteredEvents] = useState(['yoga']);
+
   const fetchData = async () => {
+    setLoading(true);
     try {
-      // Always fetch user unit details first
+      // Always fetch user unit details
       try {
         const unitRes = await api.get('/units/my-unit');
         setMyUnit(unitRes.data);
@@ -35,21 +51,16 @@ export default function ResidentDashboard() {
         setMyUnit(null);
       }
 
-      if (activeTab === 'overview') {
-        const noticesRes = await api.get('/notices');
-        setNotices(noticesRes.data.slice(0, 3)); // Top 3 recent
-
-        try {
-          const parkRes = await api.get('/parking/my-slots');
-          setMyParking(parkRes.data);
-        } catch (e) {}
+      if (activeTab === 'dashboard') {
+        const statsRes = await api.get('/auth/resident-dashboard-stats');
+        setResidentStats(statsRes.data);
       } else if (activeTab === 'bills') {
         const billsRes = await api.get('/bills');
         setBills(billsRes.data);
       } else if (activeTab === 'complaints') {
         const compRes = await api.get('/complaints');
         setComplaints(compRes.data);
-      } else if (activeTab === 'booking') {
+      } else if (activeTab === 'facility') {
         const resRes = await api.get('/facilities/reservations');
         setReservations(resRes.data);
       } else if (activeTab === 'parking') {
@@ -59,7 +70,7 @@ export default function ResidentDashboard() {
         } catch (e) {}
 
         const allParkRes = await api.get('/parking');
-        // Filter unique guest slot templates for requesting dropdown
+        // Filter unique guest slot templates
         const guestTemplates = [...new Set(allParkRes.data.filter(p => p.type === 'guest').map(p => p.slot_number))];
         setParkingSlots(guestTemplates);
       } else if (activeTab === 'tenants' && user.role === 'homeowner') {
@@ -67,7 +78,10 @@ export default function ResidentDashboard() {
         setPendingTenants(approvalsRes.data.tenants || []);
       }
     } catch (error) {
-      console.error('Failed to fetch resident dashboard data:', error);
+      console.error('Failed to load resident details:', error);
+      setErrorMsg('Error loading information.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -79,7 +93,7 @@ export default function ResidentDashboard() {
   const handlePayBill = async (billId) => {
     try {
       await api.put(`/bills/${billId}/pay`);
-      setSuccessMsg('Bill paid successfully via mock gateway!');
+      setSuccessMsg('Bill paid successfully via mock secure gateway!');
       fetchData();
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (error) {
@@ -93,27 +107,27 @@ export default function ResidentDashboard() {
     e.preventDefault();
     try {
       await api.post('/complaints', complaintForm);
-      setSuccessMsg('Complaint submitted successfully.');
-      setComplaintForm({ category: '', description: '', priority: 'medium' });
-      fetchData();
+      setSuccessMsg('Maintenance ticket filed successfully.');
+      setComplaintForm({ category: 'Plumbing', description: '', priority: 'medium' });
+      setActiveTab('dashboard');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (error) {
-      setErrorMsg(error.response?.data?.message || 'Complaint submission failed');
+      setErrorMsg(error.response?.data?.message || 'Ticket submission failed');
       setTimeout(() => setErrorMsg(''), 4000);
     }
   };
 
-  // Request Reservation
+  // Request Facility Booking
   const handleReserve = async (e) => {
     e.preventDefault();
     try {
       await api.post('/facilities/reserve', bookingForm);
-      setSuccessMsg('Facility reservation requested! Pending Admin review.');
-      setBookingForm({ facility_name: 'Rooftop Lounge', date: '' });
-      fetchData();
+      setSuccessMsg('Facility reservation request submitted. Pending review.');
+      setBookingForm({ facility_name: 'Swimming Pool Annex', date: '' });
+      setActiveTab('dashboard');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (error) {
-      setErrorMsg(error.response?.data?.message || 'Reservation request failed');
+      setErrorMsg(error.response?.data?.message || 'Reservation failed');
       setTimeout(() => setErrorMsg(''), 4000);
     }
   };
@@ -123,17 +137,17 @@ export default function ResidentDashboard() {
     e.preventDefault();
     try {
       await api.post('/parking/request-guest', parkingForm);
-      setSuccessMsg('Guest parking slot requested! Pending Admin approval.');
+      setSuccessMsg('Guest parking space requested. Pending approval.');
       setParkingForm({ slot_number: '', guest_date: '' });
       fetchData();
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (error) {
-      setErrorMsg(error.response?.data?.message || 'Guest parking request failed');
+      setErrorMsg(error.response?.data?.message || 'Guest slot request failed');
       setTimeout(() => setErrorMsg(''), 4000);
     }
   };
 
-  // Homeowner tenant approvals (Double Approval Chain Step 1)
+  // Homeowner tenant approvals (Double Approval Step 1)
   const handleTenantApproval = async (tenantId, action) => {
     try {
       const res = await api.post('/auth/approve', { userId: tenantId, action });
@@ -141,429 +155,800 @@ export default function ResidentDashboard() {
       fetchData();
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (error) {
-      setErrorMsg(error.response?.data?.message || 'Action failed');
+      setErrorMsg(error.response?.data?.message || 'Approval action failed');
       setTimeout(() => setErrorMsg(''), 4000);
     }
   };
 
+  // Edit Profile Update
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put('/auth/profile', profileForm);
+      setSuccessMsg('User profile updated successfully.');
+      setShowEditProfileModal(false);
+      
+      // Update global user model if possible or trigger stats update
+      fetchData();
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (error) {
+      setErrorMsg(error.response?.data?.message || 'Profile update failed');
+      setTimeout(() => setErrorMsg(''), 4000);
+    }
+  };
+
+  // Open Edit Profile modal with active values
+  const openEditProfile = () => {
+    setProfileForm({
+      full_name: user?.full_name || '',
+      phone_number: user?.phone_number || '',
+      vehicle_number: user?.vehicle_number || ''
+    });
+    setShowEditProfileModal(true);
+  };
+
+  // Toggle event registration
+  const toggleRegisterEvent = (eventId) => {
+    if (registeredEvents.includes(eventId)) {
+      setRegisteredEvents(registeredEvents.filter(id => id !== eventId));
+      setSuccessMsg("Successfully unregistered from event.");
+    } else {
+      setRegisteredEvents([...registeredEvents, eventId]);
+      setSuccessMsg("Successfully registered for event!");
+    }
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  // Metrics, fallback calculations
+  const metrics = residentStats?.metrics || {
+    pendingComplaints: 0,
+    urgentComplaints: 0,
+    upcomingBookings: 0,
+    pendingPayments: 0,
+    activeNotices: 0,
+    nextBooking: null,
+    nextPaymentDue: null
+  };
+
+  const displayName = profileForm.full_name || user?.full_name || user?.email?.split('@')[0];
+  const displayRoleLabel = user?.role === 'homeowner' ? 'Homeowner' : 'Tenant';
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 p-6">
-      {/* Sidebar Navigation */}
-      <div className="lg:col-span-1 flex flex-col gap-4">
-        {/* Profile Card */}
-        <div className="glass-panel p-5 rounded-xl">
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">My Unit</h2>
-          {myUnit ? (
-            <div className="space-y-1">
-              <p className="text-lg font-bold text-white">{myUnit.block_name}</p>
-              <p className="text-xs text-slate-300">Floor {myUnit.floor_number} • Unit {myUnit.unit_number}</p>
-              <p className="text-xs text-sky-400 font-semibold mt-2">
-                Allocated Space: {myUnit.parking_slot_number ? `Slot ${myUnit.parking_slot_number}` : 'No permanent slot'}
-              </p>
+    <div className="min-h-screen bg-[#f4f7fd] text-slate-800 flex font-sans select-none antialiased">
+      
+      {/* 1. Left Sidebar Navigation */}
+      <aside className="w-64 bg-white border-r border-slate-200 shrink-0 flex flex-col justify-between h-screen sticky top-0">
+        <div>
+          {/* Logo Branding */}
+          <div className="p-5 border-b border-slate-100 flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-[#133fbd] flex items-center justify-center">
+              <Building className="w-5 h-5 text-white" />
             </div>
-          ) : (
-            <div className="text-slate-500 text-xs italic flex items-center gap-1.5 p-2 rounded bg-slate-950/20 border border-slate-900">
-              <ShieldAlert className="w-4 h-4 text-amber-500/80" /> Pending unit allocation by Admin.
+            <div>
+              <h1 className="font-extrabold text-base text-slate-800 leading-tight">AptManager</h1>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Resident Console</span>
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="p-4 space-y-1">
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'complaints', label: 'Complaints', icon: ClipboardList },
+              { id: 'facility', label: 'Facilities', icon: Compass },
+              { id: 'payments', label: 'Payments', icon: FileText },
+              { id: 'parking', label: 'Guest Parking', icon: Compass },
+              ...(user.role === 'homeowner' ? [{ id: 'tenants', label: 'Tenant Approvals', icon: Users }] : [])
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full py-2 px-3 rounded-lg flex items-center gap-3 text-xs font-bold transition-all duration-150 text-left ${
+                    isActive 
+                      ? 'bg-[#133fbd] text-white shadow-md shadow-blue-900/10' 
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                  }`}
+                >
+                  <Icon className={`w-4.5 h-4.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* New Request shortcut and Profile Card Footer */}
+        <div className="p-4 border-t border-slate-100 space-y-3 bg-slate-50">
+          
+          {/* New Request Button */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowNewRequestMenu(!showNewRequestMenu)}
+              className="w-full py-2 bg-[#133fbd] hover:bg-[#0f3299] text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Request</span>
+            </button>
+            
+            {showNewRequestMenu && (
+              <div className="absolute bottom-11 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl py-1 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                <button 
+                  onClick={() => { setActiveTab('complaints'); setShowNewRequestMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <Wrench className="w-3.5 h-3.5 text-slate-400" />
+                  File a Complaint
+                </button>
+                <button 
+                  onClick={() => { setActiveTab('facility'); setShowNewRequestMenu(false); }}
+                  className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  Book Common Facility
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center font-bold text-blue-700 uppercase">
+              {displayName.charAt(0)}
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-800 tracking-tight leading-tight">{displayName}</h4>
+              <p className="text-[10px] text-slate-400 font-semibold">{displayRoleLabel}</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Container */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        
+        {/* 2. Top Bar */}
+        <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-30">
+          <div className="relative max-w-sm w-full">
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search for notices, payments, or help..."
+              className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-9 pr-4 py-1.5 text-xs outline-none text-slate-800 focus:border-blue-600 focus:bg-white transition-colors"
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button className="relative p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+              <Bell className="w-4.5 h-4.5" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+            <button className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+              <Settings className="w-4.5 h-4.5" />
+            </button>
+            <div className="h-8 w-[1px] bg-slate-200"></div>
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+          </div>
+        </header>
+
+        {/* 3. Main Content Grid */}
+        <main className="p-6 flex-1 overflow-y-auto max-w-7xl w-full mx-auto">
+          
+          {errorMsg && (
+            <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+              <span>•</span>
+              <span>{errorMsg}</span>
             </div>
           )}
-        </div>
-
-        {/* Tab Buttons */}
-        <div className="glass-panel p-4 rounded-xl flex flex-col gap-1.5">
-          {[
-            { id: 'overview', label: 'Overview', icon: Home },
-            { id: 'bills', label: 'Utility Bills & Pay', icon: FileText },
-            { id: 'complaints', label: 'File Complaints', icon: Wrench },
-            { id: 'booking', label: 'Facility Booking', icon: Calendar },
-            { id: 'parking', label: 'Guest Parking', icon: Compass },
-            ...(user.role === 'homeowner' ? [{ id: 'tenants', label: 'Tenant Approvals', icon: Users }] : [])
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full py-2.5 px-4 rounded-lg flex items-center gap-3 text-sm font-medium transition-all duration-200 ${
-                  activeTab === tab.id
-                    ? 'bg-sky-600/25 border border-sky-500/30 text-sky-400'
-                    : 'text-slate-400 hover:bg-slate-900/60 border border-transparent'
-                }`}
-              >
-                <Icon className="w-4 h-4" /> {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Main Workspace */}
-      <div className="lg:col-span-3 flex flex-col gap-6">
-        {errorMsg && (
-          <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm">
-            {errorMsg}
-          </div>
-        )}
-        {successMsg && (
-          <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
-            {successMsg}
-          </div>
-        )}
-
-        {/* tab = OVERVIEW */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="p-6 rounded-2xl bg-gradient-to-r from-sky-950/40 to-indigo-950/40 border border-sky-900/20">
-              <h1 className="text-xl font-bold text-white mb-2">Welcome Home!</h1>
-              <p className="text-sm text-slate-300 font-sans max-w-2xl leading-relaxed">
-                Welcome to your resident dashboard. Here you can keep up with community notices, check utility bills, submit maintenance tickets, book common facilities, and reserve parking space.
-              </p>
+          {successMsg && (
+            <div className="mb-6 p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-2">
+              <span>✓</span>
+              <span>{successMsg}</span>
             </div>
+          )}
 
-            {/* Parking & Notice quick look */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="glass-panel p-6 rounded-xl space-y-4">
-                <h2 className="text-sm font-bold text-slate-300 tracking-wider uppercase">Active Parking Slots</h2>
-                {myParking.length === 0 ? (
-                  <p className="text-xs text-slate-500 italic">No parking slot assigned yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {myParking.map((p) => (
-                      <div key={p.id} className="p-3.5 bg-slate-950/40 border border-slate-800 rounded-lg flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-bold text-white">{p.slot_number}</p>
-                          <p className="text-[10px] text-slate-400 capitalize">{p.type} Slot {p.guest_date ? `(for ${new Date(p.guest_date).toLocaleDateString()})` : ''}</p>
-                        </div>
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded uppercase">Active</span>
-                      </div>
-                    ))}
+          {/* 3.1 activeTab = DASHBOARD */}
+          {activeTab === 'dashboard' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Left & Middle Column */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* Title */}
+                <div>
+                  <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">Resident Dashboard</h2>
+                  <p className="text-xs text-slate-400 font-semibold mt-1">View apartment updates, manage requests, and track payments in one place.</p>
+                </div>
+
+                {/* Shortcuts */}
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => setActiveTab('complaints')}
+                    className="py-2.5 px-4 bg-[#133fbd] hover:bg-[#0f3299] text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition shadow-sm active:scale-95"
+                  >
+                    <Wrench className="w-4 h-4 text-blue-200" />
+                    <span>Submit Complaint</span>
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('facility')}
+                    className="py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition active:scale-95"
+                  >
+                    <Calendar className="w-4 h-4 text-slate-500" />
+                    <span>Book Facility</span>
+                  </button>
+                </div>
+
+                {/* Metrics Row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Complaints */}
+                  <div className="bg-white border border-slate-200/50 p-4 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Pending Complaints</span>
+                    <h3 className="text-2xl font-black text-slate-800 mt-1">{String(metrics.pendingComplaints).padStart(2, '0')}</h3>
+                    <p className="text-[9px] text-red-500 font-bold mt-1 flex items-center gap-0.5">
+                      <span>!</span>
+                      <span>{metrics.urgentComplaints} Urgent</span>
+                    </p>
                   </div>
-                )}
-              </div>
+                  
+                  {/* Bookings */}
+                  <div className="bg-white border border-slate-200/50 p-4 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Upcoming Bookings</span>
+                    <h3 className="text-2xl font-black text-slate-800 mt-1">{String(metrics.upcomingBookings).padStart(2, '0')}</h3>
+                    <p className="text-[9px] text-slate-400 font-bold mt-1 truncate">
+                      {metrics.nextBooking ? `${metrics.nextBooking.facility_name}` : 'None scheduled'}
+                    </p>
+                  </div>
 
-              <div className="glass-panel p-6 rounded-xl space-y-4">
-                <h2 className="text-sm font-bold text-slate-300 tracking-wider uppercase">Recent Notices</h2>
-                {notices.length === 0 ? (
-                  <p className="text-xs text-slate-500 italic">No active announcements.</p>
-                ) : (
+                  {/* Payments */}
+                  <div className="bg-white border border-slate-200/50 p-4 rounded-xl shadow-sm border-l-4 border-l-red-500">
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Pending Payments</span>
+                    <h3 className="text-2xl font-black text-red-600 mt-1">${metrics.pendingPayments}</h3>
+                    <p className="text-[9px] text-red-500 font-bold mt-1">
+                      {metrics.nextPaymentDue ? `Due by ${new Date(metrics.nextPaymentDue).toLocaleDateString()}` : 'No bills outstanding'}
+                    </p>
+                  </div>
+
+                  {/* Notices */}
+                  <div className="bg-white border border-slate-200/50 p-4 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Active Notices</span>
+                    <h3 className="text-2xl font-black text-slate-800 mt-1">{String(metrics.activeNotices).padStart(2, '0')}</h3>
+                    <p className="text-[9px] text-slate-400 font-bold mt-1">Announcements board</p>
+                  </div>
+                </div>
+
+                {/* Latest Notices */}
+                <div className="bg-white border border-slate-200/50 p-5 rounded-2xl shadow-sm space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Latest Notices</h3>
+                    <button onClick={() => setActiveTab('notices')} className="text-[10px] font-bold text-blue-700 hover:underline">See all notices</button>
+                  </div>
                   <div className="space-y-3">
-                    {notices.map((n) => (
-                      <div key={n.id} className="border-b border-slate-800/80 pb-2.5 last:border-b-0 last:pb-0">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-xs font-bold text-white">{n.title}</h4>
-                          <span className="text-[9px] text-slate-500">{new Date(n.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 font-sans leading-relaxed line-clamp-2">{n.content}</p>
+                    {(!residentStats?.latestNotices || residentStats.latestNotices.length === 0) ? (
+                      <p className="text-xs text-slate-400 italic">No notices posted.</p>
+                    ) : (
+                      residentStats.latestNotices.map((n) => {
+                        let badgeColor = 'bg-blue-50 text-blue-700 border-blue-100';
+                        let categoryName = 'COMMUNITY';
+                        if (n.title.toLowerCase().includes('water') || n.title.toLowerCase().includes('maintenance') || n.title.toLowerCase().includes('electricity')) {
+                          badgeColor = 'bg-red-50 text-red-700 border-red-100';
+                          categoryName = 'MAINTENANCE';
+                        } else if (n.title.toLowerCase().includes('policy') || n.title.toLowerCase().includes('visitor') || n.title.toLowerCase().includes('security')) {
+                          badgeColor = 'bg-indigo-50 text-indigo-700 border-indigo-100';
+                          categoryName = 'SECURITY';
+                        }
+                        return (
+                          <div key={n.id} className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between shadow-sm">
+                            <div className="space-y-1">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-bold border uppercase ${badgeColor}`}>
+                                {categoryName}
+                              </span>
+                              <h4 className="text-xs font-bold text-slate-800 pt-1">{n.title}</h4>
+                              <p className="text-[10px] text-slate-400 font-medium font-sans leading-normal line-clamp-1">{n.content}</p>
+                            </div>
+                            <button 
+                              onClick={() => alert(`Announcement Details:\n\nTitle: ${n.title}\nDate: ${new Date(n.created_at).toLocaleDateString()}\nAuthor: ${n.author_email}\n\nContent:\n${n.content}`)}
+                              className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-800 text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm"
+                            >
+                              View Notice
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* My Complaints */}
+                <div className="bg-white border border-slate-200/50 p-5 rounded-2xl shadow-sm space-y-4">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">My Complaints</h3>
+                  {(!residentStats?.myComplaints || residentStats.myComplaints.length === 0) ? (
+                    <p className="text-xs text-slate-400 italic">No complaints logged.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-600">
+                        <thead>
+                          <tr className="text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100">
+                            <th className="pb-2">Complaint ID</th>
+                            <th className="pb-2">Category</th>
+                            <th className="pb-2">Priority</th>
+                            <th className="pb-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {residentStats.myComplaints.map((c) => (
+                            <tr key={c.id} className="hover:bg-slate-50/50">
+                              <td className="py-2.5 font-bold text-blue-700">#CMP-{c.id}</td>
+                              <td className="py-2.5 font-medium">{c.category}</td>
+                              <td className="py-2.5">
+                                <span className={`font-bold text-[10px] flex items-center gap-1 ${
+                                  c.priority === 'high' ? 'text-blue-600' :
+                                  c.priority === 'medium' ? 'text-red-500' :
+                                  'text-slate-500'
+                                }`}>
+                                  <span>•</span> {c.priority === 'high' ? 'High' : c.priority === 'medium' ? 'Emergency' : 'Normal'}
+                                </span>
+                              </td>
+                              <td className="py-2.5">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                                  c.status === 'resolved' ? 'bg-emerald-50 text-emerald-700' :
+                                  c.status === 'in_progress' ? 'bg-blue-50 text-blue-700' :
+                                  'bg-red-55/10 text-red-500'
+                                }`}>
+                                  {c.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Invoices & Payments */}
+                <div className="bg-white border border-slate-200/50 p-5 rounded-2xl shadow-sm space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Invoices & Payments</h3>
+                      <p className="text-[10px] text-slate-400 font-semibold font-sans mt-0.5">Maintenance and utility dues</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Total Outstanding</span>
+                      <h4 className="text-base font-black text-red-600 mt-0.5">${metrics.pendingPayments.toFixed(2)}</h4>
+                    </div>
+                  </div>
+                  
+                  {(!residentStats?.myBills || residentStats.myBills.length === 0) ? (
+                    <p className="text-xs text-slate-400 italic">No billing history available.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-600">
+                        <thead>
+                          <tr className="text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100">
+                            <th className="pb-2">Invoice ID</th>
+                            <th className="pb-2">Month</th>
+                            <th className="pb-2">Amount</th>
+                            <th className="pb-2">Due Date</th>
+                            <th className="pb-2">Status</th>
+                            <th className="pb-2 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {residentStats.myBills.map((b) => (
+                            <tr key={b.id} className="hover:bg-slate-50/50">
+                              <td className="py-3 font-bold text-slate-800">#INV-{b.id}</td>
+                              <td className="py-3 font-medium">
+                                {new Date(b.due_date).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                              </td>
+                              <td className="py-3 font-black text-slate-800">${b.amount}</td>
+                              <td className={`py-3 font-bold ${b.status === 'unpaid' ? 'text-red-500' : 'text-slate-400'}`}>
+                                {new Date(b.due_date).toLocaleDateString()}
+                              </td>
+                              <td className="py-3">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                                  b.status === 'paid' ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'
+                                }`}>
+                                  {b.status}
+                                </span>
+                              </td>
+                              <td className="py-3 text-right">
+                                {b.status === 'unpaid' ? (
+                                  <button 
+                                    onClick={() => handlePayBill(b.id)}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm"
+                                  >
+                                    Pay Now
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-bold">Paid</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Right Profile & Activity Pane */}
+              <div className="space-y-6">
+                
+                {/* Profile Card */}
+                <div className="bg-white border border-slate-200/50 p-6 rounded-2xl shadow-sm text-center space-y-4">
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center font-bold text-blue-700 text-3xl uppercase shadow-inner">
+                      {displayName.charAt(0)}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-800 tracking-tight">{displayName}</h3>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                      {myUnit ? `${myUnit.block_name} - Unit ${myUnit.unit_number}` : 'No Assigned Unit'} • {displayRoleLabel}
+                    </p>
+                  </div>
+                  
+                  <div className="pt-2 text-left space-y-2 border-t border-slate-100 text-xs font-semibold text-slate-500">
+                    <div className="flex items-center gap-2.5">
+                      <User className="w-4 h-4 text-slate-400" />
+                      <span className="truncate">{user?.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Clock className="w-4 h-4 text-slate-400" />
+                      <span>{user?.phone_number || 'No contact added'}</span>
+                    </div>
+                    {user?.vehicle_number && (
+                      <div className="flex items-center gap-2.5">
+                        <Compass className="w-4 h-4 text-slate-400" />
+                        <span>Vehicle: {user.vehicle_number}</span>
                       </div>
-                    ))}
+                    )}
+                  </div>
+
+                  <button 
+                    onClick={openEditProfile}
+                    className="w-full mt-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg cursor-pointer transition text-center flex items-center justify-center gap-1.5"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit Profile</span>
+                  </button>
+                </div>
+
+                {/* Recent Activities */}
+                <div className="bg-white border border-slate-200/50 p-5 rounded-2xl shadow-sm space-y-4">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Recent Activities</h3>
+                  <div className="space-y-3">
+                    {(!residentStats?.activities || residentStats.activities.length === 0) ? (
+                      <p className="text-xs text-slate-400 italic">No activity logs recorded.</p>
+                    ) : (
+                      residentStats.activities.map((act) => (
+                        <div key={act.id} className="flex gap-3 relative">
+                          <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 ${
+                            act.type === 'complaint' ? 'bg-red-50 border-red-100 text-red-500' :
+                            act.type === 'booking' ? 'bg-blue-50 border-blue-100 text-blue-500' :
+                            'bg-emerald-50 border-emerald-100 text-emerald-500'
+                          }`}>
+                            {act.type === 'complaint' ? <Wrench className="w-3.5 h-3.5" /> :
+                             act.type === 'booking' ? <Calendar className="w-3.5 h-3.5" /> :
+                             <CreditCard className="w-3.5 h-3.5" />}
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-800 leading-none">{act.title}</h4>
+                            <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-tight">{act.message}</p>
+                            <span className="text-[8px] text-slate-400 font-bold block mt-0.5">
+                              {new Date(act.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Upcoming Events */}
+                <div className="bg-white border border-slate-200/50 p-5 rounded-2xl shadow-sm space-y-4">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Upcoming Events</h3>
+                  <div className="space-y-3">
+                    {/* Event 1 */}
+                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2.5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800">Yoga Morning Session</h4>
+                          <span className="text-[9px] text-slate-400 font-semibold block mt-0.5">Terrace Lounge • Oct 10, 07:00 AM</span>
+                        </div>
+                        {registeredEvents.includes('yoga') && (
+                          <span className="text-[8px] font-extrabold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded uppercase">Registered</span>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => toggleRegisterEvent('yoga')}
+                        className={`w-full py-1.5 text-[10px] font-bold rounded-lg cursor-pointer transition text-center ${
+                          registeredEvents.includes('yoga')
+                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white'
+                        }`}
+                      >
+                        {registeredEvents.includes('yoga') ? 'Unregister' : 'Register Now'}
+                      </button>
+                    </div>
+
+                    {/* Event 2 */}
+                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2.5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800">Digital Detox Seminar</h4>
+                          <span className="text-[9px] text-slate-400 font-semibold block mt-0.5">Community Hall • Oct 15, 06:00 PM</span>
+                        </div>
+                        {registeredEvents.includes('detox') && (
+                          <span className="text-[8px] font-extrabold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded uppercase">Registered</span>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => toggleRegisterEvent('detox')}
+                        className={`w-full py-1.5 text-[10px] font-bold rounded-lg cursor-pointer transition text-center ${
+                          registeredEvents.includes('detox')
+                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white'
+                        }`}
+                      >
+                        {registeredEvents.includes('detox') ? 'Unregister' : 'Register Now'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* 3.2 activeTab = COMPLAINTS (Filing & history) */}
+          {activeTab === 'complaints' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Form */}
+              <div className="lg:col-span-1 bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm h-fit">
+                <h3 className="text-sm font-bold text-slate-800 mb-4">File a Maintenance Ticket</h3>
+                <form onSubmit={handleSubmitComplaint} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Category</label>
+                    <div className="relative">
+                      <select
+                        required
+                        className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 rounded-lg text-xs font-medium appearance-none cursor-pointer"
+                        value={complaintForm.category}
+                        onChange={(e) => setComplaintForm({ ...complaintForm, category: e.target.value })}
+                      >
+                        <option value="Plumbing">Plumbing</option>
+                        <option value="Electrical">Electrical</option>
+                        <option value="Elevator">Elevator</option>
+                        <option value="Common Area Security">Common Area Security</option>
+                        <option value="Other Operations">Other Operations</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Priority</label>
+                    <div className="relative">
+                      <select
+                        required
+                        className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 rounded-lg text-xs font-medium appearance-none cursor-pointer"
+                        value={complaintForm.priority}
+                        onChange={(e) => setComplaintForm({ ...complaintForm, priority: e.target.value })}
+                      >
+                        <option value="low">Normal (Low)</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">Emergency (High)</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Details / Description</label>
+                    <textarea
+                      required
+                      rows={4}
+                      placeholder="Specify unit details, location, and the issue..."
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg transition-all text-xs font-medium font-sans"
+                      value={complaintForm.description}
+                      onChange={(e) => setComplaintForm({ ...complaintForm, description: e.target.value })}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-[#133fbd] hover:bg-[#0f3299] text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-sm"
+                  >
+                    File Maintenance Ticket
+                  </button>
+                </form>
+              </div>
+
+              {/* Table list */}
+              <div className="lg:col-span-2 bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm">
+                <h3 className="text-sm font-bold text-slate-800 mb-4">Tickets History</h3>
+                {complaints.length === 0 ? (
+                  <p className="text-slate-400 text-xs italic">No tickets filed yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
+                          <th className="pb-3">Ticket ID</th>
+                          <th className="pb-3">Category</th>
+                          <th className="pb-3">Description</th>
+                          <th className="pb-3">Priority</th>
+                          <th className="pb-3">Status</th>
+                          <th className="pb-3">Assigned Agent</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {complaints.map((c) => (
+                          <tr key={c.id} className="hover:bg-slate-50/50">
+                            <td className="py-3 font-bold text-slate-800">#CMP-{c.id}</td>
+                            <td className="py-3 font-bold text-slate-700">{c.category}</td>
+                            <td className="py-3 text-slate-500 font-sans max-w-[150px] truncate" title={c.description}>
+                              {c.description}
+                            </td>
+                            <td className="py-3 capitalize font-semibold">{c.priority}</td>
+                            <td className="py-3">
+                              <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] uppercase ${
+                                c.status === 'resolved' ? 'bg-emerald-50 text-emerald-700' :
+                                c.status === 'in_progress' ? 'bg-blue-50 text-blue-700' :
+                                'bg-amber-50 text-amber-700'
+                              }`}>
+                                {c.status}
+                              </span>
+                            </td>
+                            <td className="py-3 text-slate-400 font-medium italic">
+                              {c.assigned_staff_email || 'Awaiting Assignee'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* tab = BILLS */}
-        {activeTab === 'bills' && (
-          <div className="glass-panel p-6 rounded-xl">
-            <h2 className="text-lg font-bold text-white mb-4">Utility & Maintenance Bills</h2>
-            {bills.length === 0 ? (
-              <p className="text-slate-400 text-sm">No bills issued for your unit.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                      <th className="pb-3">Invoice Details</th>
-                      <th className="pb-3">Amount</th>
-                      <th className="pb-3">Due Date</th>
-                      <th className="pb-3">Status</th>
-                      <th className="pb-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {bills.map((bill) => (
-                      <tr key={bill.id} className="hover:bg-slate-900/10">
-                        <td className="py-3.5">
-                          <p className="font-medium text-white text-sm">{bill.description}</p>
-                          <span className="text-[10px] text-slate-500">Issued: {new Date(bill.created_at).toLocaleDateString()}</span>
-                        </td>
-                        <td className="py-3.5 text-slate-200 font-bold">${bill.amount}</td>
-                        <td className="py-3.5 text-slate-400">
-                          {new Date(bill.due_date).toLocaleDateString()}
-                        </td>
-                        <td className="py-3.5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
-                            bill.status === 'paid'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}>
-                            {bill.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-right">
-                          {bill.status === 'unpaid' && (
-                            <button
-                              onClick={() => handlePayBill(bill.id)}
-                              className="py-1.5 px-3 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold inline-flex items-center gap-1 transition-all active:scale-95"
-                            >
-                              <CreditCard className="w-3.5 h-3.5" /> Pay Now
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* tab = COMPLAINTS */}
-        {activeTab === 'complaints' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 glass-panel p-6 rounded-xl h-fit">
-              <h2 className="text-md font-bold text-white mb-4">File Maintenance Request</h2>
-              <form onSubmit={handleSubmitComplaint} className="space-y-4">
-                <div>
-                  <label className="text-xs text-slate-300 font-semibold block mb-1">Issue Category</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Plumbing Leak / Electrical"
-                    className="w-full glass-input text-sm"
-                    value={complaintForm.category}
-                    onChange={(e) => setComplaintForm({ ...complaintForm, category: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-300 font-semibold block mb-1">Priority Importance</label>
-                  <select
-                    className="w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-sm outline-none"
-                    value={complaintForm.priority}
-                    onChange={(e) => setComplaintForm({ ...complaintForm, priority: e.target.value })}
-                  >
-                    <option value="low">Low Priority</option>
-                    <option value="medium">Medium Priority</option>
-                    <option value="high">High Priority</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-300 font-semibold block mb-1">Provide Description</label>
-                  <textarea
-                    required
-                    rows={4}
-                    placeholder="Provide details about the issue..."
-                    className="w-full glass-input text-sm font-sans"
-                    value={complaintForm.description}
-                    onChange={(e) => setComplaintForm({ ...complaintForm, description: e.target.value })}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-lg transition active:scale-95"
-                >
-                  File Complaint
-                </button>
-              </form>
-            </div>
-
-            <div className="md:col-span-2 glass-panel p-6 rounded-xl">
-              <h2 className="text-lg font-bold text-white mb-4">Complaint History</h2>
-              {complaints.length === 0 ? (
-                <p className="text-slate-400 text-sm">No complaints logged.</p>
-              ) : (
-                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                  {complaints.map((c) => (
-                    <div key={c.id} className="p-4 rounded-lg bg-slate-950/40 border border-slate-800/60 flex flex-col justify-between">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="font-bold text-white text-sm">{c.category}</h3>
-                          <span className="text-[9px] text-slate-500">Filed: {new Date(c.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                            c.priority === 'high' ? 'bg-rose-500/20 text-rose-300' :
-                            c.priority === 'medium' ? 'bg-amber-500/20 text-amber-300' :
-                            'bg-sky-500/20 text-sky-300'
-                          }`}>
-                            {c.priority}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                            c.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                            c.status === 'in_progress' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' :
-                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}>
-                            {c.status.replace('_', ' ')}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed font-sans mt-1">{c.description}</p>
-                      {c.assigned_staff_email && (
-                        <div className="mt-3 pt-2.5 border-t border-slate-900/60 text-[10px] text-slate-500">
-                          Assigned to: {c.assigned_staff_email}
-                        </div>
-                      )}
+          {/* 3.3 activeTab = FACILITY (Filing & history) */}
+          {activeTab === 'facility' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Form */}
+              <div className="lg:col-span-1 bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm h-fit">
+                <h3 className="text-sm font-bold text-slate-800 mb-4">Request Facility Booking</h3>
+                <form onSubmit={handleReserve} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Facility Area</label>
+                    <div className="relative">
+                      <select
+                        required
+                        className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 rounded-lg text-xs font-medium appearance-none cursor-pointer"
+                        value={bookingForm.facility_name}
+                        onChange={(e) => setBookingForm({ ...bookingForm, facility_name: e.target.value })}
+                      >
+                        <option value="Swimming Pool Annex">Swimming Pool Annex</option>
+                        <option value="Clubhouse Hall">Clubhouse Hall</option>
+                        <option value="Rooftop Lounge">Rooftop Lounge</option>
+                        <option value="Tennis Court">Tennis Court</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* tab = BOOKING */}
-        {activeTab === 'booking' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 glass-panel p-6 rounded-xl h-fit">
-              <h2 className="text-md font-bold text-white mb-4">Reserve Common Facility</h2>
-              <form onSubmit={handleReserve} className="space-y-4">
-                <div>
-                  <label className="text-xs text-slate-300 font-semibold block mb-1">Select Facility</label>
-                  <select
-                    className="w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-sm outline-none"
-                    value={bookingForm.facility_name}
-                    onChange={(e) => setBookingForm({ ...bookingForm, facility_name: e.target.value })}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Date</label>
+                    <input
+                      type="date"
+                      required
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 rounded-lg text-xs font-medium transition-all"
+                      value={bookingForm.date}
+                      onChange={(e) => setBookingForm({ ...bookingForm, date: e.target.value })}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-[#133fbd] hover:bg-[#0f3299] text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-sm"
                   >
-                    <option value="Rooftop Lounge">Rooftop Lounge</option>
-                    <option value="Swimming Pool Annex">Swimming Pool Annex</option>
-                    <option value="Clubhouse Hall">Clubhouse Hall</option>
-                    <option value="Tennis Court">Tennis Court</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-300 font-semibold block mb-1">Reservation Date</label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full glass-input text-sm"
-                    value={bookingForm.date}
-                    onChange={(e) => setBookingForm({ ...bookingForm, date: e.target.value })}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-lg transition active:scale-95"
-                >
-                  Book Area
-                </button>
-              </form>
-            </div>
+                    Request Reservation
+                  </button>
+                </form>
+              </div>
 
-            <div className="md:col-span-2 glass-panel p-6 rounded-xl">
-              <h2 className="text-lg font-bold text-white mb-4">My Bookings Registry</h2>
-              {reservations.length === 0 ? (
-                <p className="text-slate-400 text-sm">No reservations requested yet.</p>
+              {/* Booking logs */}
+              <div className="lg:col-span-2 bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm">
+                <h3 className="text-sm font-bold text-slate-800 mb-4">My Bookings</h3>
+                {reservations.length === 0 ? (
+                  <p className="text-slate-400 text-xs italic">No bookings placed yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
+                          <th className="pb-3">Facility</th>
+                          <th className="pb-3">Scheduled Date</th>
+                          <th className="pb-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {reservations.map((res) => (
+                          <tr key={res.id} className="hover:bg-slate-50/50">
+                            <td className="py-3 font-bold text-slate-800">{res.facility_name}</td>
+                            <td className="py-3 text-slate-400 font-semibold">
+                              {new Date(res.date).toLocaleDateString()}
+                            </td>
+                            <td className="py-3">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                                res.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                                res.status === 'pending' ? 'bg-amber-50 text-amber-700' :
+                                'bg-red-50 text-red-700'
+                              }`}>
+                                {res.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 3.4 activeTab = PAYMENTS */}
+          {activeTab === 'payments' && (
+            <div className="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-800">Utility Billing & Invoice History</h3>
+              {bills.length === 0 ? (
+                <p className="text-slate-400 text-xs italic">No utility logs found.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm text-slate-300">
+                  <table className="w-full text-left text-xs text-slate-600">
                     <thead>
-                      <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                        <th className="pb-3">Facility</th>
-                        <th className="pb-3">Booking Date</th>
-                        <th className="pb-3">Request Status</th>
+                      <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
+                        <th className="pb-3">Invoice ID</th>
+                        <th className="pb-3">Description</th>
+                        <th className="pb-3">Amount</th>
+                        <th className="pb-3">Due Date</th>
+                        <th className="pb-3">Status</th>
+                        <th className="pb-3 text-right">Payment Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
-                      {reservations.map((r) => (
-                        <tr key={r.id} className="hover:bg-slate-900/10">
-                          <td className="py-3.5 text-white font-medium">{r.facility_name}</td>
-                          <td className="py-3.5 text-slate-400">
-                            {new Date(r.date).toLocaleDateString()}
+                    <tbody className="divide-y divide-slate-100">
+                      {bills.map((bill) => (
+                        <tr key={bill.id} className="hover:bg-slate-50/50">
+                          <td className="py-3.5 font-bold text-slate-800">#INV-{bill.id}</td>
+                          <td className="py-3.5 font-medium">{bill.description}</td>
+                          <td className="py-3.5 text-slate-800 font-black">${bill.amount}</td>
+                          <td className="py-3.5 text-slate-400 font-semibold">
+                            {new Date(bill.due_date).toLocaleDateString()}
                           </td>
                           <td className="py-3.5">
-                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
-                              r.status === 'approved'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : r.status === 'pending'
-                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                              bill.status === 'paid'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-red-50 text-red-700'
                             }`}>
-                              {r.status}
+                              {bill.status}
                             </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* tab = PARKING */}
-        {activeTab === 'parking' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 glass-panel p-6 rounded-xl h-fit">
-              <h2 className="text-md font-bold text-white mb-4 font-sans">Request Guest Parking</h2>
-              <form onSubmit={handleRequestParking} className="space-y-4">
-                <div>
-                  <label className="text-xs text-slate-300 font-semibold block mb-1">Select Guest Slot</label>
-                  <select
-                    required
-                    className="w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-sm outline-none"
-                    value={parkingForm.slot_number}
-                    onChange={(e) => setParkingForm({ ...parkingForm, slot_number: e.target.value })}
-                  >
-                    <option value="">-- Choose Slot --</option>
-                    {parkingSlots.map((num) => (
-                      <option key={num} value={num}>{num}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-300 font-semibold block mb-1">Date Needed</label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full glass-input text-sm"
-                    value={parkingForm.guest_date}
-                    onChange={(e) => setParkingForm({ ...parkingForm, guest_date: e.target.value })}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm rounded-lg transition active:scale-95"
-                >
-                  Request Guest Slot
-                </button>
-              </form>
-            </div>
-
-            <div className="md:col-span-2 glass-panel p-6 rounded-xl">
-              <h2 className="text-lg font-bold text-white mb-4">My Parking Allotment</h2>
-              {myParking.length === 0 ? (
-                <p className="text-slate-400 text-sm">No parking slots reserved under your unit.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm text-slate-300">
-                    <thead>
-                      <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                        <th className="pb-3">Slot Number</th>
-                        <th className="pb-3">Parking Type</th>
-                        <th className="pb-3">Scheduled Date</th>
-                        <th className="pb-3 text-right">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60">
-                      {myParking.map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-900/10">
-                          <td className="py-3.5 font-bold text-sky-400">{p.slot_number}</td>
-                          <td className="py-3.5 text-slate-300 capitalize">{p.type}</td>
-                          <td className="py-3.5 text-slate-400">
-                            {p.guest_date ? new Date(p.guest_date).toLocaleDateString() : 'Continuous'}
                           </td>
                           <td className="py-3.5 text-right">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                              p.status === 'approved' || p.status === 'active'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : p.status === 'pending'
-                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                            }`}>
-                              {p.status}
-                            </span>
+                            {bill.status === 'unpaid' ? (
+                              <button
+                                onClick={() => handlePayBill(bill.id)}
+                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm"
+                              >
+                                Pay Invoice
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-bold">Processed</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -572,73 +957,216 @@ export default function ResidentDashboard() {
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* tab = TENANTS (Homeowner only) */}
-        {activeTab === 'tenants' && user.role === 'homeowner' && (
-          <div className="glass-panel p-6 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-lg font-bold text-white">Pending Tenant Requests</h2>
-              <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded uppercase">Double-Approval Step 1</span>
-            </div>
-            <p className="text-xs text-slate-400 mb-4">Approve tenants seeking to rent your unit. Once approved, requests are sent to Administration for final clearance.</p>
-            {pendingTenants.length === 0 ? (
-              <p className="text-slate-400 text-sm">No pending tenant applications for your unit.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-300 min-w-[800px]">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                      <th className="pb-3">Full Name</th>
-                      <th className="pb-3">Tenant Email</th>
-                      <th className="pb-3">Apartment Info</th>
-                      <th className="pb-3">Relationship</th>
-                      <th className="pb-3">NIC / Passport</th>
-                      <th className="pb-3">Phone</th>
-                      <th className="pb-3">Request Date</th>
-                      <th className="pb-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {pendingTenants.map((t) => (
-                      <tr key={t.id} className="hover:bg-slate-900/10">
-                        <td className="py-3.5 font-medium text-white">{t.full_name || 'N/A'}</td>
-                        <td className="py-3.5 text-slate-300">{t.email}</td>
-                        <td className="py-3.5 text-slate-300 text-xs">
-                          {t.building_name} - {t.unit_number} {t.vehicle_number ? `(${t.vehicle_number})` : ''}
-                        </td>
-                        <td className="py-3.5 text-slate-400 capitalize">{t.relationship_to_owner || 'N/A'}</td>
-                        <td className="py-3.5 text-slate-400">{t.nic_or_passport || 'N/A'}</td>
-                        <td className="py-3.5 text-slate-400">{t.phone_number || 'N/A'}</td>
-                        <td className="py-3.5 text-slate-400">
-                          {new Date(t.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="py-3.5 text-right flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleTenantApproval(t.id, 'approve')}
-                            className="p-1.5 rounded bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-400 transition"
-                            title="Approve Tenant"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleTenantApproval(t.id, 'reject')}
-                            className="p-1.5 rounded bg-rose-600/10 hover:bg-rose-600/20 border border-rose-500/20 text-rose-400 transition"
-                            title="Reject Tenant"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {/* 3.5 activeTab = PARKING (Guest parking requests) */}
+          {activeTab === 'parking' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Form */}
+              <div className="lg:col-span-1 bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm h-fit">
+                <h3 className="text-sm font-bold text-slate-800 mb-4">Request Guest Parking Slot</h3>
+                <form onSubmit={handleRequestParking} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Choose Guest Slot</label>
+                    <div className="relative">
+                      <select
+                        required
+                        className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 rounded-lg text-xs font-medium appearance-none cursor-pointer"
+                        value={parkingForm.slot_number}
+                        onChange={(e) => setParkingForm({ ...parkingForm, slot_number: e.target.value })}
+                      >
+                        <option value="">-- Choose Slot --</option>
+                        {parkingSlots.map((num) => (
+                          <option key={num} value={num}>{num}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Reservation Date</label>
+                    <input
+                      type="date"
+                      required
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 rounded-lg text-xs font-medium transition-all"
+                      value={parkingForm.guest_date}
+                      onChange={(e) => setParkingForm({ ...parkingForm, guest_date: e.target.value })}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-[#133fbd] hover:bg-[#0f3299] text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-sm"
+                  >
+                    Request Guest Slot
+                  </button>
+                </form>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Parking active logs */}
+              <div className="lg:col-span-2 bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm space-y-6">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 mb-2">My Active Parking Slots</h3>
+                  {myParking.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No slots allocated.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {myParking.map((p) => (
+                        <div key={p.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between shadow-sm">
+                          <div>
+                            <h4 className="text-xs font-extrabold text-slate-800">{p.slot_number}</h4>
+                            <p className="text-[10px] text-slate-400 capitalize mt-0.5">
+                              {p.type} Slot {p.guest_date ? `(for ${new Date(p.guest_date).toLocaleDateString()})` : ''}
+                            </p>
+                          </div>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                            p.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                            p.status === 'pending' ? 'bg-amber-50 text-amber-700' :
+                            'bg-red-50 text-red-700'
+                          }`}>
+                            {p.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3.6 activeTab = TENANTS (Homeowner clearance step 1) */}
+          {activeTab === 'tenants' && user.role === 'homeowner' && (
+            <div className="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Pending Tenant Applications</h3>
+                <p className="text-xs text-slate-400 font-semibold mt-1">Review tenant signups requesting association under your homeowner email. Approval triggers step 2 clearance by the administrator.</p>
+              </div>
+
+              {pendingTenants.length === 0 ? (
+                <p className="text-slate-400 text-xs italic text-center py-6">No tenant requests awaiting homeowner clearance.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-600 min-w-[700px]">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
+                        <th className="pb-3">Tenant Name</th>
+                        <th className="pb-3">Tenant Email</th>
+                        <th className="pb-3">Relationship</th>
+                        <th className="pb-3">NIC / Passport</th>
+                        <th className="pb-3">Phone</th>
+                        <th className="pb-3">Date Applied</th>
+                        <th className="pb-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pendingTenants.map((t) => (
+                        <tr key={t.id} className="hover:bg-slate-50/50">
+                          <td className="py-3 font-bold text-slate-800">{t.full_name || 'N/A'}</td>
+                          <td className="py-3">{t.email}</td>
+                          <td className="py-3 capitalize font-semibold">{t.relationship_to_owner || 'N/A'}</td>
+                          <td className="py-3">{t.nic_or_passport || 'N/A'}</td>
+                          <td className="py-3">{t.phone_number || 'N/A'}</td>
+                          <td className="py-3 text-slate-400">
+                            {new Date(t.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 text-right flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleTenantApproval(t.id, 'approve')}
+                              className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200/50 cursor-pointer transition"
+                              title="Approve Tenant"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleTenantApproval(t.id, 'reject')}
+                              className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-600 border border-red-200/50 cursor-pointer transition"
+                              title="Reject Tenant"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+        </main>
       </div>
+
+      {/* 4. Edit Profile Modal */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Update Personal Profile</h3>
+              <button 
+                onClick={() => setShowEditProfileModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter full name"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg transition-all text-xs font-medium"
+                  value={profileForm.full_name}
+                  onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
+                />
+              </div>
+              
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">Phone Number</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter phone number"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg transition-all text-xs font-medium"
+                  value={profileForm.phone_number}
+                  onChange={(e) => setProfileForm({ ...profileForm, phone_number: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">Vehicle Number (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="Enter vehicle tag"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg transition-all text-xs font-medium"
+                  value={profileForm.vehicle_number}
+                  onChange={(e) => setProfileForm({ ...profileForm, vehicle_number: e.target.value })}
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-sm"
+                >
+                  Save Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
