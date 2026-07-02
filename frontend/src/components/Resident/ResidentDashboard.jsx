@@ -3,11 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, ClipboardList, Compass, FileText, Plus, Users, 
   Bell, Settings, Check, X, Search, Calendar, User, Clock, CreditCard, 
-  Lock, Megaphone, ShieldAlert, ChevronDown, ChevronRight, Wrench, Edit3, Building
+  Lock, Megaphone, ShieldAlert, ChevronDown, ChevronRight, Wrench, Edit3, Building, LogOut
 } from 'lucide-react';
 
 export default function ResidentDashboard() {
-  const { api, user } = useAuth();
+  const { api, user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -210,7 +210,7 @@ export default function ResidentDashboard() {
     nextPaymentDue: null
   };
 
-  const displayName = profileForm.full_name || user?.full_name || user?.email?.split('@')[0];
+  const displayName = profileForm.full_name || user?.full_name || user?.email?.split('@')[0] || 'Resident';
   const displayRoleLabel = user?.role === 'homeowner' ? 'Homeowner' : 'Tenant';
 
   return (
@@ -238,7 +238,7 @@ export default function ResidentDashboard() {
               { id: 'facility', label: 'Facilities', icon: Compass },
               { id: 'payments', label: 'Payments', icon: FileText },
               { id: 'parking', label: 'Guest Parking', icon: Compass },
-              ...(user.role === 'homeowner' ? [{ id: 'tenants', label: 'Tenant Approvals', icon: Users }] : [])
+              ...(user?.role === 'homeowner' ? [{ id: 'tenants', label: 'Tenant Approvals', icon: Users }] : [])
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -293,14 +293,23 @@ export default function ResidentDashboard() {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center font-bold text-blue-700 uppercase">
-              {displayName.charAt(0)}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center font-bold text-blue-700 uppercase">
+                {displayName.charAt(0)}
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 tracking-tight leading-tight">{displayName}</h4>
+                <p className="text-[10px] text-slate-400 font-semibold">{displayRoleLabel}</p>
+              </div>
             </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-800 tracking-tight leading-tight">{displayName}</h4>
-              <p className="text-[10px] text-slate-400 font-semibold">{displayRoleLabel}</p>
-            </div>
+            <button 
+              onClick={logout}
+              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+              title="Log Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -517,7 +526,7 @@ export default function ResidentDashboard() {
                     </div>
                     <div className="text-right">
                       <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Total Outstanding</span>
-                      <h4 className="text-base font-black text-red-600 mt-0.5">${metrics.pendingPayments.toFixed(2)}</h4>
+                      <h4 className="text-base font-black text-red-600 mt-0.5">${Number(metrics.pendingPayments || 0).toFixed(2)}</h4>
                     </div>
                   </div>
                   
@@ -1035,7 +1044,7 @@ export default function ResidentDashboard() {
           )}
 
           {/* 3.6 activeTab = TENANTS (Homeowner clearance step 1) */}
-          {activeTab === 'tenants' && user.role === 'homeowner' && (
+          {activeTab === 'tenants' && user?.role === 'homeowner' && (
             <div className="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Pending Tenant Applications</h3>
