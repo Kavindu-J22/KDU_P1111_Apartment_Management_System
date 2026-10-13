@@ -5,6 +5,10 @@ import {
   Search, Bell, Settings, Building, ClipboardList, LayoutDashboard,
   Check, X, Plus, Eye, ChevronDown, CheckSquare, Sparkles, RefreshCw
 } from 'lucide-react';
+import ProfileModal from '../Common/ProfileModal';
+import NotificationsModal from '../Common/NotificationsModal';
+import PopupModal from '../Common/PopupModal';
+import GlobalSearchDropdown from '../Common/GlobalSearchDropdown';
 
 export default function MaintenanceDashboard() {
   const { api, user, logout } = useAuth();
@@ -13,7 +17,17 @@ export default function MaintenanceDashboard() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showGlobalSearchDrop, setShowGlobalSearchDrop] = useState(false);
+  const [popupModal, setPopupModal] = useState({ isOpen: false, title: '', message: '', type: 'info', details: null });
+  const [selectedComplaintDetail, setSelectedComplaintDetail] = useState(null);
+
+  const showPopup = (title, message, type = 'info', details = null) => {
+    setPopupModal({ isOpen: true, title, message, type, details });
+  };
 
   // Form Input States
   const [updateForm, setUpdateForm] = useState({ id: '', status: 'in_progress', notes: '' });
@@ -144,31 +158,56 @@ export default function MaintenanceDashboard() {
         {/* 2. Top Bar */}
         <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-30">
           <div className="relative max-w-sm w-full">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 z-10" />
             <input
               type="text"
-              placeholder="Search tasks or units..."
+              placeholder="Search tasks, units, residents..."
               className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-9 pr-4 py-1.5 text-xs outline-none text-slate-800 focus:border-blue-600 focus:bg-white transition-colors"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowGlobalSearchDrop(true);
+              }}
+              onFocus={() => setShowGlobalSearchDrop(true)}
+            />
+            <GlobalSearchDropdown
+              searchQuery={searchQuery}
+              isOpen={showGlobalSearchDrop}
+              onClose={() => setShowGlobalSearchDrop(false)}
+              userRole="maintenance"
+              onSelectResult={(item) => {
+                setShowGlobalSearchDrop(false);
+                if (item.type === 'complaint') {
+                  const found = complaints.find(c => c.id === item.raw?.id);
+                  if (found) setSelectedComplaintDetail(found);
+                }
+              }}
             />
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="relative p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+            <button 
+              onClick={() => setShowNotificationsModal(true)}
+              className="relative p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer active:scale-95"
+              title="Notifications"
+            >
               <Bell className="w-4.5 h-4.5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
             <div className="h-8 w-[1px] bg-slate-200"></div>
-            <div className="flex items-center gap-2.5 text-right">
+            <button 
+              onClick={() => setShowProfileModal(true)}
+              className="flex items-center gap-2.5 text-right cursor-pointer hover:opacity-85 transition group"
+              title="View Personal Details"
+            >
               <div>
-                <span className="text-xs font-bold text-slate-800 block">{employeeName}</span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Senior Tech</span>
+                <span className="text-xs font-bold text-slate-800 block group-hover:text-blue-600 transition">{employeeName}</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Maintenance Staff</span>
               </div>
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs group-hover:bg-blue-600 group-hover:text-white transition">
                 {employeeName.charAt(0)}
               </div>
-            </div>
+            </button>
           </div>
         </header>
 
@@ -224,25 +263,31 @@ export default function MaintenanceDashboard() {
                 </div>
                 <div className="flex gap-2">
                   <button 
-                    onClick={fetchComplaints}
-                    className="px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition shadow-sm"
+                    onClick={async () => {
+                      setIsRefreshing(true);
+                      await fetchComplaints();
+                      setIsRefreshing(false);
+                      setSuccessMsg('Work order tasks refreshed successfully!');
+                      setTimeout(() => setSuccessMsg(''), 3000);
+                    }}
+                    className="px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition shadow-sm active:scale-95"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Refresh Tasks</span>
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+                    <span>{isRefreshing ? 'Refreshing...' : 'Refresh Tasks'}</span>
                   </button>
                   <button 
                     onClick={() => {
                       const emergencyElement = document.getElementById('emergency-section');
-                      if (emergencyElement) {
+                      if (emergencyElement && emergencyComplaintsList.length > 0) {
                         emergencyElement.scrollIntoView({ behavior: 'smooth' });
                       } else {
-                        alert("No emergency tickets currently assigned.");
+                        showPopup("No Emergency Tickets", "There are currently zero active emergency tickets requiring immediate attention.", "info");
                       }
                     }}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition shadow-sm"
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition shadow-sm active:scale-95"
                   >
                     <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>View Emergency Tasks</span>
+                    <span>View Emergency Tasks ({emergencyCount})</span>
                   </button>
                 </div>
               </div>
@@ -326,12 +371,8 @@ export default function MaintenanceDashboard() {
                                 </td>
                                 <td className="py-2.5 text-right">
                                   <button 
-                                    onClick={() => {
-                                      setUpdateForm({ id: String(c.id), status: c.status === 'pending' ? 'in_progress' : 'resolved', notes: '' });
-                                      const formElement = document.getElementById('update-form-section');
-                                      if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
-                                    }}
-                                    className="text-[10px] font-bold text-[#133fbd] hover:underline"
+                                    onClick={() => setSelectedComplaintDetail(c)}
+                                    className="text-[10px] font-bold text-[#133fbd] hover:underline cursor-pointer active:scale-95"
                                   >
                                     Details
                                   </button>
@@ -361,8 +402,31 @@ export default function MaintenanceDashboard() {
                               <p className="text-[10px] text-slate-500 font-semibold font-sans">{c.description}</p>
                             </div>
                             <button
-                              onClick={() => handleStatusUpdate(c.id, 'in_progress')}
-                              className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm"
+                              onClick={async () => {
+                                try {
+                                  await api.put(`/complaints/${c.id}/status`, { status: 'in_progress' });
+                                  try {
+                                    await api.put(`/complaints/${c.id}/assign`, { staff_id: user?.id });
+                                  } catch (assignErr) {
+                                    console.warn('Assign ticket non-critical error:', assignErr);
+                                  }
+                                  await fetchComplaints();
+                                  showPopup(
+                                    "Emergency Ticket Accepted",
+                                    `You have responded and accepted emergency ticket #${c.id} (${c.category}). Status updated to In Progress.`,
+                                    "success",
+                                    [
+                                      { label: "Category", value: c.category },
+                                      { label: "Unit", value: c.unit_number ? `${c.block_name || ''}-${c.unit_number}` : 'Common Property' },
+                                      { label: "Description", value: c.description },
+                                      { label: "Assigned Tech", value: employeeName }
+                                    ]
+                                  );
+                                } catch (err) {
+                                  setErrorMsg(err.response?.data?.message || 'Failed to dispatch emergency response');
+                                }
+                              }}
+                              className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm active:scale-95 shrink-0"
                             >
                               Respond Now
                             </button>
@@ -750,6 +814,124 @@ export default function MaintenanceDashboard() {
 
         </main>
       </div>
+
+      {/* Complaint Details Modal */}
+      {selectedComplaintDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-5">
+            <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-extrabold text-slate-800">Ticket #CMP-{selectedComplaintDetail.id}</h3>
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                    selectedComplaintDetail.priority === 'high' ? 'bg-red-50 text-red-600 border-red-200' :
+                    selectedComplaintDetail.priority === 'medium' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                    'bg-blue-50 text-blue-600 border-blue-200'
+                  }`}>
+                    {selectedComplaintDetail.priority}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">{selectedComplaintDetail.category} Work Order</p>
+              </div>
+              <button 
+                onClick={() => setSelectedComplaintDetail(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Resident</span>
+                  <span className="font-bold text-slate-700">{selectedComplaintDetail.resident_name || selectedComplaintDetail.resident_email || 'Resident'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Unit Location</span>
+                  <span className="font-bold text-slate-700">
+                    {selectedComplaintDetail.unit_number ? `${selectedComplaintDetail.block_name || ''}-${selectedComplaintDetail.unit_number}` : 'Common Property'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Current Status</span>
+                  <span className="font-extrabold text-blue-700 uppercase">{selectedComplaintDetail.status}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Created</span>
+                  <span className="font-semibold text-slate-600">
+                    {selectedComplaintDetail.created_at ? new Date(selectedComplaintDetail.created_at).toLocaleDateString() : 'Recent'}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Issue Description</span>
+                <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-100 text-slate-700 leading-relaxed font-sans">
+                  {selectedComplaintDetail.description || 'No detailed description provided.'}
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Change Ticket Status</span>
+                <div className="grid grid-cols-3 gap-2">
+                  {['pending', 'in_progress', 'resolved'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={async () => {
+                        await handleStatusUpdate(selectedComplaintDetail.id, st);
+                        setSelectedComplaintDetail(prev => ({ ...prev, status: st }));
+                      }}
+                      className={`py-2 px-2 rounded-lg text-xs font-bold uppercase transition cursor-pointer active:scale-95 ${
+                        selectedComplaintDetail.status === st
+                          ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/30'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {st.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedComplaintDetail(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Details Modal */}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        user={user}
+        onLogout={logout}
+      />
+
+      {/* Notifications Drawer Modal */}
+      <NotificationsModal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+      />
+
+      {/* Popup Alert Modal */}
+      <PopupModal
+        isOpen={popupModal.isOpen}
+        title={popupModal.title}
+        message={popupModal.message}
+        type={popupModal.type}
+        details={popupModal.details}
+        onClose={() => setPopupModal(prev => ({ ...prev, isOpen: false }))}
+      />
 
     </div>
   );

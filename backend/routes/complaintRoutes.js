@@ -16,7 +16,7 @@ router.get('/my-stats', verifyToken, getMyComplaintStats);
 router.post('/', verifyToken, authorizeRoles('homeowner', 'tenant'), submitComplaint);
 router.get('/', verifyToken, getComplaints);
 router.put('/:id/status', verifyToken, authorizeRoles('admin', 'staff', 'maintenance'), updateComplaintStatus);
-router.put('/:id/assign', verifyToken, authorizeRoles('admin', 'staff'), assignComplaint);
+router.put('/:id/assign', verifyToken, authorizeRoles('admin', 'staff', 'maintenance'), assignComplaint);
 router.put('/:id/description', verifyToken, authorizeRoles('admin', 'staff'), updateComplaintDescription);
 
 module.exports = router;

@@ -1010,7 +1010,7 @@ const adminUpdateUser = async (req, res) => {
 const getTestCredentials = async (req, res) => {
   try {
     const [users] = await pool.query(
-      `SELECT id, email, role, status, full_name, building_name, unit_number, phone_number, nic_or_passport, vehicle_number, relationship_to_owner
+      `SELECT id, email, role, sub_role, status, full_name, building_name, unit_number, phone_number, nic_or_passport, vehicle_number, relationship_to_owner
        FROM users
        ORDER BY FIELD(role, 'admin', 'staff', 'maintenance', 'homeowner', 'tenant'), email ASC`
     );

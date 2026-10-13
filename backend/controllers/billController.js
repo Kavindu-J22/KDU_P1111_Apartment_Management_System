@@ -322,11 +322,12 @@ const payBill = async (req, res) => {
     const targetBill = bill[0];
     let unitQuery = role === 'homeowner' ? 'SELECT id FROM units WHERE owner_id = ?' : 'SELECT id FROM units WHERE tenant_id = ?';
     const [units] = await pool.query(unitQuery, [userId]);
-    const unitId = units[0]?.id;
+    const unitIds = units.map(u => u.id);
 
-    if (!unitId || targetBill.unit_id !== unitId) {
+    if (unitIds.length === 0 || !unitIds.includes(targetBill.unit_id)) {
       return res.status(403).json({ message: 'Permission denied.' });
     }
+    const unitId = targetBill.unit_id;
 
     if (targetBill.status === 'paid') {
       return res.status(400).json({ message: 'Bill is already paid.' });

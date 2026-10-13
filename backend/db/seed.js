@@ -93,6 +93,20 @@ async function runSeed() {
       console.log('  users.sub_role already exists (skipping).');
     }
 
+    try {
+      await pool.query(`
+        UPDATE users 
+        SET sub_role = CASE 
+          WHEN sub_role IN ('junior_manager', 'senior_manager') THEN 'senior_manager'
+          ELSE 'admin_staff'
+        END 
+        WHERE role = 'staff'
+      `);
+      console.log('  Standardized staff sub_roles to admin_staff and senior_manager.');
+    } catch (e) {
+      console.log('  Could not standardize sub_roles:', e.message);
+    }
+
 
     // ── PATCH: parking_management – drop unique on slot_number, add composite ─
     console.log('[Patch] Patching parking_management table...');
@@ -271,13 +285,13 @@ async function runSeed() {
     const users = [
       // Core 4 Users
       { email: 'admin@apartment.com',       password: 'AdminPass123!',       role: 'admin',       status: 'approved', fullName: 'System Admin', phone: '+94 77 000 0001' },
-      { email: 'staff@apartment.com',       password: 'StaffPass123!',       role: 'staff',       status: 'approved', fullName: 'Primary Staff', phone: '+94 77 000 0002' },
+      { email: 'staff@apartment.com',       password: 'StaffPass123!',       role: 'staff',       sub_role: 'admin_staff', status: 'approved', fullName: 'Primary Staff', phone: '+94 77 000 0002' },
       { email: 'maintenance@apartment.com', password: 'MaintenancePass123!', role: 'maintenance', status: 'approved', fullName: 'Chief Technician', phone: '+94 77 000 0003' },
       { email: 'homeowner@apartment.com',   password: 'OwnerPass123!',       role: 'homeowner',   status: 'approved', fullName: 'Amila Perera', building: 'Block A', unit: 'A01', phone: '+94 77 301 0001', nic: 'NIC882001001V', vehicle: 'WP-CAB-1001' },
 
       // 20 Additional Seed Users
       // Additional Staff & Maintenance
-      { email: 'staff.sarah@apartment.com', password: 'StaffPass123!',       role: 'staff',       status: 'approved', fullName: 'Kumari Silva', phone: '+94 77 111 2233' },
+      { email: 'staff.sarah@apartment.com', password: 'StaffPass123!',       role: 'staff',       sub_role: 'senior_manager', status: 'approved', fullName: 'Kumari Silva', phone: '+94 77 111 2233' },
       { email: 'maint.alex@apartment.com',  password: 'MaintenancePass123!', role: 'maintenance', status: 'approved', fullName: 'Sunil Wickramasinghe', phone: '+94 77 222 3344' },
 
       // Additional Homeowners (11)
@@ -332,11 +346,11 @@ async function runSeed() {
 
       const [result] = await pool.query(
         `INSERT INTO users (
-          email, password_hash, role, status, owner_id, owner_approved,
+          email, password_hash, role, sub_role, status, owner_id, owner_approved,
           full_name, nic_or_passport, phone_number, building_name, unit_number, vehicle_number, relationship_to_owner
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          u.email, hash, u.role, u.status, ownerId, 1,
+          u.email, hash, u.role, (u.sub_role || (u.role === 'staff' ? 'admin_staff' : null)), u.status, ownerId, 1,
           u.fullName || null, u.nic || null, u.phone || null, u.building || null, u.unit || null, u.vehicle || null, u.relationship || null
         ]
       );

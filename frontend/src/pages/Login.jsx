@@ -18,10 +18,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   const STAFF_SUB_ROLES = [
-    { value: 'junior_staff',    label: 'Junior Staff' },
-    { value: 'senior_staff',   label: 'Senior Staff' },
-    { value: 'staff_admin',    label: 'Staff Admin' },
-    { value: 'junior_manager', label: 'Junior Manager' },
+    { value: 'admin_staff',    label: 'Admin Staff' },
     { value: 'senior_manager', label: 'Senior Manager' },
   ];
 
@@ -215,11 +212,9 @@ export default function Login() {
                         onChange={(e) => setSubRole(e.target.value)}
                       >
                         <option value="">-- Select your sub role --</option>
-                        <option value="junior_staff">Junior Staff</option>
-                        <option value="senior_staff">Senior Staff</option>
-                        <option value="staff_admin">Staff Admin</option>
-                        <option value="junior_manager">Junior Manager</option>
-                        <option value="senior_manager">Senior Manager</option>
+                        {STAFF_SUB_ROLES.map(r => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
                       </select>
                       <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-blue-400 pointer-events-none" />
                     </div>

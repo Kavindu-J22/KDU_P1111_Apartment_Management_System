@@ -6,77 +6,92 @@ import {
   Megaphone, Calendar, ClipboardList, Shield, ShieldAlert as AlertIcon, CreditCard, ChevronDown,
   Clock, CheckCircle, Eye, Edit, TrendingUp, Lock
 } from 'lucide-react';
+import ProfileModal from '../Common/ProfileModal';
+import NotificationsModal from '../Common/NotificationsModal';
+import PopupModal from '../Common/PopupModal';
+import GlobalSearchDropdown from '../Common/GlobalSearchDropdown';
+import { downloadEventsPDF } from '../../utils/pdfGenerator';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STAFF RBAC CONFIGURATION
+// STAFF RBAC CONFIGURATION (2 Roles: Admin Staff & Senior Manager)
 // ─────────────────────────────────────────────────────────────────────────────
 const SUB_ROLE_LABELS = {
-  junior_staff:    'Junior Staff',
-  senior_staff:    'Senior Staff',
-  staff_admin:     'Staff Admin',
-  junior_manager:  'Junior Manager',
-  senior_manager:  'Senior Manager',
+  admin_staff:    'Admin Staff',
+  senior_manager: 'Senior Manager',
+  // Backward compatibility aliases
+  staff_admin:    'Admin Staff',
+  junior_staff:   'Admin Staff',
+  senior_staff:   'Admin Staff',
+  junior_manager: 'Senior Manager',
 };
 
 // per page: { view, add, edit, delete, restricted }
 // 'canAddAdmin' false = cannot add admin-role users
 const STAFF_RBAC = {
-  // page key        junior_staff        senior_staff        staff_admin                    junior_manager               senior_manager
-  users:     {
+  users: {
+    admin_staff:    { view: true,  add: true,  edit: false, delete: false, restricted: false, canAddAdmin: false, canApprove: true,  canReject: false },
+    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false, canAddAdmin: false, canApprove: true,  canReject: true },
+    // Aliases
+    staff_admin:    { view: true,  add: true,  edit: false, delete: false, restricted: false, canAddAdmin: false, canApprove: true,  canReject: false },
     junior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false, canAddAdmin: false, canApprove: false, canReject: false },
     senior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false, canAddAdmin: false, canApprove: false, canReject: false },
-    staff_admin:    { view: true,  add: true,  edit: false, delete: false, restricted: false, canAddAdmin: false, canApprove: true,  canReject: false },
     junior_manager: { view: true,  add: true,  edit: false, delete: false, restricted: false, canAddAdmin: false, canApprove: false, canReject: false },
-    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false, canAddAdmin: false, canApprove: true,  canReject: true },
   },
   residents: {
+    admin_staff:    { view: true,  add: true,  edit: false, delete: false, restricted: false },
+    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false },
+    staff_admin:    { view: true,  add: true,  edit: false, delete: false, restricted: false },
     junior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false },
     senior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false },
-    staff_admin:    { view: true,  add: true,  edit: false, delete: false, restricted: false },
     junior_manager: { view: true,  add: true,  edit: false, delete: false, restricted: false },
-    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false },
   },
   units: {
+    admin_staff:    { view: true,  add: false, edit: false, delete: false, restricted: false, canAllocate: true },
+    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false, canAllocate: true },
+    staff_admin:    { view: true,  add: false, edit: false, delete: false, restricted: false, canAllocate: true },
     junior_staff:   { view: false, add: false, edit: false, delete: false, restricted: true,  canAllocate: false },
     senior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false, canAllocate: false },
-    staff_admin:    { view: true,  add: false, edit: false, delete: false, restricted: false, canAllocate: true },
     junior_manager: { view: true,  add: false, edit: false, delete: false, restricted: false, canAllocate: false },
-    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false, canAllocate: true },
   },
   complaints: {
+    admin_staff:    { view: true,  add: false, edit: false, delete: false, restricted: false },
+    senior_manager: { view: true,  add: false, edit: true,  delete: false, restricted: false },
+    staff_admin:    { view: true,  add: false, edit: false, delete: false, restricted: false },
     junior_staff:   { view: false, add: false, edit: false, delete: false, restricted: true },
     senior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false },
-    staff_admin:    { view: true,  add: false, edit: false, delete: false, restricted: false },
     junior_manager: { view: true,  add: false, edit: false, delete: false, restricted: false },
-    senior_manager: { view: true,  add: false, edit: true,  delete: false, restricted: false },
   },
   facility: {
+    admin_staff:    { view: true,  add: true,  edit: false, delete: false, restricted: false, canAllocateParking: true },
+    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false, canAllocateParking: true },
+    staff_admin:    { view: true,  add: true,  edit: false, delete: false, restricted: false, canAllocateParking: true },
     junior_staff:   { view: false, add: false, edit: false, delete: false, restricted: true,  canAllocateParking: false },
     senior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false, canAllocateParking: false },
-    staff_admin:    { view: true,  add: true,  edit: false, delete: false, restricted: false, canAllocateParking: true },
     junior_manager: { view: true,  add: false, edit: false, delete: false, restricted: false, canAllocateParking: false },
-    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false, canAllocateParking: true },
   },
   events: {
+    admin_staff:    { view: true,  add: true,  edit: false, delete: false, restricted: false },
+    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false },
+    staff_admin:    { view: true,  add: true,  edit: false, delete: false, restricted: false },
     junior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false },
     senior_staff:   { view: true,  add: true,  edit: false, delete: false, restricted: false },
-    staff_admin:    { view: true,  add: true,  edit: false, delete: false, restricted: false },
     junior_manager: { view: true,  add: true,  edit: false, delete: false, restricted: false },
-    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false },
   },
   notices: {
+    admin_staff:    { view: true,  add: true,  edit: true,  delete: false, restricted: false },
+    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false },
+    staff_admin:    { view: true,  add: true,  edit: true,  delete: false, restricted: false },
     junior_staff:   { view: true,  add: false, edit: false, delete: false, restricted: false },
     senior_staff:   { view: true,  add: true,  edit: false, delete: false, restricted: false },
-    staff_admin:    { view: true,  add: true,  edit: true,  delete: false, restricted: false },
     junior_manager: { view: true,  add: true,  edit: false, delete: false, restricted: false },
-    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false },
   },
   bills: {
+    admin_staff:    { view: true,  add: false, edit: true,  delete: false, restricted: false },
+    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false },
+    staff_admin:    { view: true,  add: false, edit: true,  delete: false, restricted: false },
     junior_staff:   { view: false, add: false, edit: false, delete: false, restricted: true },
     senior_staff:   { view: false, add: false, edit: false, delete: false, restricted: true },
-    staff_admin:    { view: true,  add: false, edit: true,  delete: false, restricted: false },
     junior_manager: { view: false, add: false, edit: false, delete: false, restricted: true },
-    senior_manager: { view: true,  add: true,  edit: true,  delete: false, restricted: false },
   },
 };
 
@@ -89,8 +104,8 @@ const getRbac = (user, page) => {
   if (!user) return defaults;
   if (user.role === 'admin') return { view: true, add: true, edit: true, delete: true, restricted: false, canAddAdmin: true, canApprove: true, canReject: true, canAllocate: true, canAllocateParking: true };
   if (user.role !== 'staff') return { view: true, add: true, edit: true, delete: true, restricted: false, canAddAdmin: false, canApprove: true, canReject: true, canAllocate: true, canAllocateParking: true };
-  const sub = user.sub_role;
-  if (!sub || !STAFF_RBAC[page]?.[sub]) return { ...defaults, view: true, restricted: false };
+  const sub = user.sub_role || 'admin_staff';
+  if (!STAFF_RBAC[page]?.[sub]) return { ...defaults, view: true, restricted: false };
   return { ...defaults, ...STAFF_RBAC[page][sub] };
 };
 
@@ -262,6 +277,17 @@ export default function AdminDashboard() {
   const [newBill, setNewBill] = useState({ unit_id: '', amount: '', description: '', due_date: '' });
   const [newNotice, setNewNotice] = useState({ title: '', content: '' });
   const [searchQuery, setSearchQuery] = useState('');
+  const [showGlobalSearchDrop, setShowGlobalSearchDrop] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showFullHistoryModal, setShowFullHistoryModal] = useState(false);
+  const [noticePage, setNoticePage] = useState(1);
+  const [calendarDate, setCalendarDate] = useState(new Date(2026, 9, 1)); // October 2026
+  const [popupModal, setPopupModal] = useState({ isOpen: false, title: '', message: '', type: 'info', details: null });
+
+  const showPopup = (title, message, type = 'info', details = null) => {
+    setPopupModal({ isOpen: true, title, message, type, details });
+  };
 
   // Allocate modal – user search state
   const [ownerSearch, setOwnerSearch]       = useState('');
@@ -917,7 +943,7 @@ export default function AdminDashboard() {
 
   // Simulated Alert Action
   const triggerEmergencyAlert = () => {
-    alert("System Alert: High-priority emergency notifications sent to all active resident accounts.");
+    showPopup("Emergency Broadcast Sent", "High-priority emergency notifications sent to all active resident accounts.", "warning");
     setSuccessMsg('Emergency alerts broadcast successfully.');
     setTimeout(() => setSuccessMsg(''), 3000);
   };
@@ -1218,7 +1244,46 @@ export default function AdminDashboard() {
                 placeholder="Search operational records..."
                 className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-9 pr-4 py-1.5 text-xs outline-none text-slate-800 focus:border-blue-600 focus:bg-white transition-colors"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowGlobalSearchDrop(true);
+                }}
+                onFocus={() => setShowGlobalSearchDrop(true)}
+              />
+              <GlobalSearchDropdown
+                query={searchQuery}
+                isOpen={showGlobalSearchDrop}
+                onClose={() => setShowGlobalSearchDrop(false)}
+                onNavigate={(tab) => {
+                  setActiveTab(tab);
+                  setShowGlobalSearchDrop(false);
+                }}
+                onSelectItem={(type, item) => {
+                  if (type === 'complaint') setSelectedComplaint(item);
+                  else if (type === 'user') setSelectedUserView(item);
+                  else if (type === 'notice') showPopup(`Notice: ${item.title}`, item.content, "info", item);
+                  else if (type === 'event') showPopup(`Event: ${item.name}`, `${item.type} on ${new Date(item.date).toLocaleDateString()} at ${item.location}`, "info", item);
+                  else if (type === 'bill') showPopup(`Invoice #${item.invoice_id || item.id}`, item.description, "info", item);
+                  setShowGlobalSearchDrop(false);
+                }}
+                records={{
+                  tabs: [
+                    { id: 'dashboard', label: 'Dashboard' },
+                    { id: 'approvals', label: 'User Management & Approvals' },
+                    { id: 'residents', label: 'Residents Directory' },
+                    { id: 'units', label: 'Unit & Parking Inventory' },
+                    { id: 'complaints', label: 'Complaints & Maintenance' },
+                    { id: 'facility', label: 'Facility Reservations' },
+                    { id: 'events', label: 'Community Events' },
+                    { id: 'notices', label: 'Notices & Announcements' },
+                    { id: 'bills', label: 'Payments & Billing' },
+                  ],
+                  users: [...users, ...residents],
+                  complaints,
+                  notices,
+                  events,
+                  bills
+                }}
               />
             </div>
           )
@@ -1240,7 +1305,7 @@ export default function AdminDashboard() {
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => {
-                    alert("Simulated Action: Resident list data exported to CSV format successfully.");
+                    showPopup("Export Completed", "Resident list data exported to CSV format successfully.", "success");
                   }}
                   className="py-1.5 px-3.5 bg-white border border-slate-255 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-lg cursor-pointer transition shadow-sm active:scale-95"
                 >
@@ -1262,7 +1327,7 @@ export default function AdminDashboard() {
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => {
-                    alert("Simulated Action: Unit inventory data exported to CSV format successfully.");
+                    showPopup("Export Completed", "Unit inventory data exported to CSV format successfully.", "success");
                   }}
                   className="py-1.5 px-3.5 bg-white border border-slate-255 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-lg cursor-pointer transition shadow-sm active:scale-95"
                 >
@@ -1335,22 +1400,34 @@ export default function AdminDashboard() {
             )}
 
             {/* Notification bell */}
-            <button className="relative p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+            <button 
+              onClick={() => setShowNotificationsModal(true)}
+              className="relative p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+              title="System Notifications"
+            >
               <Bell className="w-4.5 h-4.5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
             </button>
             
             {/* Divider line */}
             <div className="h-8 w-[1px] bg-slate-200"></div>
 
             {/* Profile Avatar Mode */}
-            <div className="flex items-center gap-2.5 text-right">
+            <div 
+              onClick={() => setShowProfileModal(true)}
+              className="flex items-center gap-2.5 text-right cursor-pointer hover:opacity-85 transition"
+              title="Click to view personal profile details"
+            >
               <div>
-                <span className="text-xs font-bold text-slate-800 block">Admin Panel</span>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Operational Mode</span>
+                <span className="text-xs font-bold text-slate-800 block">
+                  {user?.full_name || 'Admin Panel'}
+                </span>
+                <span className="text-[10px] text-blue-600 font-extrabold uppercase tracking-wider block">
+                  {SUB_ROLE_LABELS[user?.sub_role] || user?.role || 'Admin'}
+                </span>
               </div>
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-extrabold text-xs shadow-sm shadow-blue-600/10">
-                A
+              <div className="w-8 h-8 rounded-full bg-[#133fbd] flex items-center justify-center text-white font-extrabold text-xs shadow-sm shadow-blue-600/10">
+                {(user?.full_name || user?.email || 'A').charAt(0).toUpperCase()}
               </div>
             </div>
           </div>
@@ -3051,8 +3128,18 @@ export default function AdminDashboard() {
                     <div className="flex justify-between items-center border-b border-slate-100 pb-2.5 mb-4">
                       <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Staff Workload</h3>
                       <button 
-                        onClick={() => alert("Staff overview detailed chart printed successfully.")}
-                        className="text-[10px] font-extrabold text-blue-700 hover:text-blue-500 tracking-wider"
+                        onClick={() => {
+                          showPopup(
+                            "Staff Workload Overview",
+                            "Current assignment distribution across operational personnel:",
+                            "info",
+                            staffWorkload.map(s => ({
+                              label: s.name || 'Staff Member',
+                              value: `${s.assigned || 0} active tickets • ${s.completed || 0} resolved`
+                            }))
+                          );
+                        }}
+                        className="text-[10px] font-extrabold text-blue-700 hover:text-blue-500 tracking-wider cursor-pointer"
                       >
                         View All
                       </button>
@@ -3610,7 +3697,10 @@ export default function AdminDashboard() {
                   <h3 className="text-sm font-bold text-slate-800">Resident Event Registrations</h3>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={() => alert("Simulated Action: PDF report generated for resident event registrations.")}
+                      onClick={() => {
+                        downloadEventsPDF(events, eventRegistrations);
+                        showPopup("PDF Export Generated", "Community Events & Registrations report has been exported and downloaded as a PDF.", "success");
+                      }}
                       className="py-1 px-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-[10px] font-bold rounded cursor-pointer transition shadow-sm active:scale-95"
                     >
                       Export PDF
@@ -3698,51 +3788,107 @@ export default function AdminDashboard() {
                 
                 {/* Event Calendar */}
                 <div className="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-sm font-bold text-slate-800">Event Calendar</h3>
-                    <div className="flex items-center gap-4 text-xs font-bold text-blue-700">
-                      <span>&lt;</span>
-                      <span className="uppercase tracking-wider">October 2026</span>
-                      <span>&gt;</span>
-                    </div>
-                  </div>
-                  
-                  {/* Calendar Grid */}
-                  <div className="grid grid-cols-7 gap-y-3 text-center text-xs font-bold text-slate-600">
-                    {/* Days Header */}
-                    {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d) => (
-                      <span key={d} className="text-[9px] text-slate-400 uppercase tracking-wider mb-2">{d}</span>
-                    ))}
+                  {(() => {
+                    const cYear = calendarDate.getFullYear();
+                    const cMonth = calendarDate.getMonth();
+                    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                    const firstDayIndex = new Date(cYear, cMonth, 1).getDay();
+                    const daysInMonth = new Date(cYear, cMonth + 1, 0).getDate();
                     
-                    {/* Month start pad (Thursday start) */}
-                    {[...Array(4)].map((_, i) => (
-                      <span key={`pad-${i}`} className="text-slate-200 font-normal">-</span>
-                    ))}
-                    
-                    {/* Day numbers */}
-                    {[...Array(31)].map((_, i) => {
-                      const dayNum = i + 1;
-                      const hasEvent = [14, 29, 31].includes(dayNum);
-                      let dayStyle = 'py-1 text-slate-700';
-                      
-                      if (dayNum === 25) { // current day active style
-                        dayStyle = 'py-1 bg-blue-50 text-blue-700 rounded-lg relative';
-                      } else if (hasEvent) {
-                        dayStyle = 'py-1 bg-blue-600 text-white rounded-lg relative shadow-sm';
-                      }
-
-                      return (
-                        <div key={`day-${dayNum}`} className="flex justify-center items-center">
-                          <span className={`w-8 h-8 flex items-center justify-center font-bold transition ${dayStyle}`}>
-                            {dayNum}
-                            {hasEvent && (
-                              <span className="absolute bottom-1 w-1 h-1 bg-white rounded-full"></span>
-                            )}
-                          </span>
+                    return (
+                      <>
+                        <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-sm font-bold text-slate-800">Event Calendar</h3>
+                          <div className="flex items-center gap-3 text-xs font-bold text-blue-700">
+                            <button
+                              type="button"
+                              onClick={() => setCalendarDate(new Date(cYear, cMonth - 1, 1))}
+                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-blue-50 cursor-pointer active:scale-95 transition"
+                              title="Previous Month"
+                            >
+                              &lt;
+                            </button>
+                            <span className="uppercase tracking-wider min-w-[110px] text-center">{monthNames[cMonth]} {cYear}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCalendarDate(new Date(cYear, cMonth + 1, 1))}
+                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-blue-50 cursor-pointer active:scale-95 transition"
+                              title="Next Month"
+                            >
+                              &gt;
+                            </button>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        
+                        {/* Calendar Grid */}
+                        <div className="grid grid-cols-7 gap-y-3 text-center text-xs font-bold text-slate-600">
+                          {/* Days Header */}
+                          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d) => (
+                            <span key={d} className="text-[9px] text-slate-400 uppercase tracking-wider mb-2">{d}</span>
+                          ))}
+                          
+                          {/* Month start padding */}
+                          {[...Array(firstDayIndex)].map((_, i) => (
+                            <span key={`pad-${i}`} className="text-slate-200 font-normal">-</span>
+                          ))}
+                          
+                          {/* Day numbers */}
+                          {[...Array(daysInMonth)].map((_, i) => {
+                            const dayNum = i + 1;
+                            const matchedEvents = events.filter((e) => {
+                              if (!e.date) return false;
+                              const ed = new Date(e.date);
+                              return ed.getFullYear() === cYear && ed.getMonth() === cMonth && ed.getDate() === dayNum;
+                            });
+                            const hasEvent = matchedEvents.length > 0 || (cMonth === 9 && cYear === 2026 && [14, 29, 31].includes(dayNum));
+                            
+                            const today = new Date();
+                            const isToday = today.getFullYear() === cYear && today.getMonth() === cMonth && today.getDate() === dayNum;
+
+                            let dayStyle = 'py-1 text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer';
+                            if (hasEvent) {
+                              dayStyle = 'py-1 bg-blue-600 text-white rounded-lg relative shadow-sm hover:bg-blue-700 cursor-pointer';
+                            } else if (isToday) {
+                              dayStyle = 'py-1 bg-blue-50 text-blue-700 rounded-lg relative hover:bg-blue-100 cursor-pointer';
+                            }
+
+                            return (
+                              <div key={`day-${dayNum}`} className="flex justify-center items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (matchedEvents.length > 0) {
+                                      showPopup(
+                                        `Events on ${monthNames[cMonth]} ${dayNum}, ${cYear}`,
+                                        `${matchedEvents.length} event(s) scheduled on this day:`,
+                                        'info',
+                                        matchedEvents.map((ev) => ({
+                                          label: ev.name || ev.title || 'Community Event',
+                                          value: `${ev.type || 'Event'} • ${ev.time || 'TBD'} • Loc: ${ev.location || 'Community Hall'} • Status: ${ev.status || 'Upcoming'}`
+                                        }))
+                                      );
+                                    } else {
+                                      showPopup(
+                                        `Calendar: ${monthNames[cMonth]} ${dayNum}, ${cYear}`,
+                                        `No community events are scheduled on this date. Click "+ Add New Event" above to schedule an event.`,
+                                        'info'
+                                      );
+                                    }
+                                  }}
+                                  className={`w-8 h-8 flex items-center justify-center font-bold transition active:scale-95 ${dayStyle}`}
+                                >
+                                  {dayNum}
+                                  {hasEvent && (
+                                    <span className="absolute bottom-1 w-1 h-1 bg-white rounded-full"></span>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Event Participation Overview */}
@@ -3922,7 +4068,17 @@ export default function AdminDashboard() {
                     </div>
 
                     <button 
-                      onClick={() => alert("Simulated Action: Notices data exported to CSV format successfully.")}
+                      onClick={() => {
+                        const csvContent = "data:text/csv;charset=utf-8," + ["Notice ID,Title,Category,Status,Priority,Audience", ...notices.map(n => `"${n.notice_id || n.id}","${(n.title || '').replace(/"/g, '""')}","${n.category || ''}","${n.status || ''}","${n.priority || ''}","${n.audience || ''}"`)].join("\n");
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", `notices_export_${new Date().toISOString().slice(0, 10)}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showPopup("Notices Exported", `${notices.length} notices exported to CSV file successfully.`, "success");
+                      }}
                       className="py-1 px-3 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold rounded-lg cursor-pointer transition flex items-center gap-1 active:scale-95 shadow-xs animate-in duration-200"
                     >
                       <span>📥</span>
@@ -3953,7 +4109,7 @@ export default function AdminDashboard() {
                           <td colSpan={9} className="py-4 text-center text-slate-400 italic">No notices found matching criteria.</td>
                         </tr>
                       ) : (
-                        notices.map((n) => {
+                        notices.slice((noticePage - 1) * 5, noticePage * 5).map((n) => {
                           let badgeStyle = 'bg-slate-50 text-slate-700 border-slate-100';
                           if (n.status === 'published') badgeStyle = 'bg-emerald-55/10 text-emerald-700 border-emerald-200/40';
                           else if (n.status === 'scheduled') badgeStyle = 'bg-blue-50 text-blue-700 border-blue-100';
@@ -4039,17 +4195,49 @@ export default function AdminDashboard() {
                   </table>
                 </div>
 
-                {/* Pagination placeholder matching screenshot */}
-                <div className="flex justify-between items-center pt-4 border-t border-slate-100 text-xs font-bold text-slate-400 mt-2">
-                  <span>Showing 1 to {notices.length} of {noticeMetrics.activeNotices} active notices</span>
-                  <div className="flex gap-1.5">
-                    <button className="px-2.5 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 rounded text-slate-600">Previous</button>
-                    <button className="px-3 py-1 bg-blue-600 text-white rounded shadow-sm">1</button>
-                    <button className="px-3 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 rounded text-slate-600">2</button>
-                    <button className="px-3 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 rounded text-slate-600">3</button>
-                    <button className="px-2.5 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 rounded text-slate-600">Next</button>
-                  </div>
-                </div>
+                {/* Functional Pagination */}
+                {(() => {
+                  const noticesPerPage = 5;
+                  const totalNoticePages = Math.max(1, Math.ceil(notices.length / noticesPerPage));
+                  const currentNoticePage = Math.min(noticePage, totalNoticePages);
+                  const startIndex = notices.length === 0 ? 0 : (currentNoticePage - 1) * noticesPerPage + 1;
+                  const endIndex = Math.min(currentNoticePage * noticesPerPage, notices.length);
+
+                  return (
+                    <div className="flex justify-between items-center pt-4 border-t border-slate-100 text-xs font-bold text-slate-400 mt-2">
+                      <span>Showing {startIndex} to {endIndex} of {notices.length} active notices</span>
+                      <div className="flex gap-1.5 items-center">
+                        <button 
+                          onClick={() => setNoticePage(p => Math.max(1, p - 1))}
+                          disabled={currentNoticePage <= 1}
+                          className="px-2.5 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-600 cursor-pointer active:scale-95 transition"
+                        >
+                          Previous
+                        </button>
+                        {Array.from({ length: Math.min(totalNoticePages, 5) }, (_, idx) => idx + 1).map((pageNum) => (
+                          <button
+                            key={pageNum}
+                            onClick={() => setNoticePage(pageNum)}
+                            className={`px-3 py-1 rounded cursor-pointer transition ${
+                              currentNoticePage === pageNum
+                                ? 'bg-blue-600 text-white shadow-sm font-black'
+                                : 'bg-slate-50 border border-slate-100 hover:bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                        <button 
+                          onClick={() => setNoticePage(p => Math.min(totalNoticePages, p + 1))}
+                          disabled={currentNoticePage >= totalNoticePages}
+                          className="px-2.5 py-1 bg-slate-50 border border-slate-100 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed rounded text-slate-600 cursor-pointer active:scale-95 transition"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Bottom two column breakdown */}
@@ -4107,8 +4295,18 @@ export default function AdminDashboard() {
                     <div className="flex justify-between items-center mb-5">
                       <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Recent Notice Activity</h3>
                       <button 
-                        onClick={() => alert("Recent activity details showing full administrative logs.")}
-                        className="text-xs font-bold text-blue-700 hover:underline"
+                        onClick={() => {
+                          showPopup(
+                            "Notice Activity Log",
+                            "Full history of administrative notice broadcasts and actions:",
+                            "info",
+                            noticeActivities.map(act => ({
+                              label: `${act.title} (${act.time})`,
+                              value: `${act.message} • [${act.badge}] ${act.badge2 ? '• [' + act.badge2 + ']' : ''}`
+                            }))
+                          );
+                        }}
+                        className="text-xs font-bold text-blue-700 hover:underline cursor-pointer"
                       >
                         View All
                       </button>
@@ -4120,7 +4318,22 @@ export default function AdminDashboard() {
                       ) : (
                         noticeActivities.map((act) => {
                           return (
-                            <div key={act.id} className="flex gap-3 relative pb-1 border-b border-slate-50 last:border-0 last:pb-0">
+                            <div 
+                              key={act.id} 
+                              onClick={() => {
+                                showPopup(
+                                  `Notice Activity: ${act.title}`,
+                                  act.message,
+                                  'info',
+                                  [
+                                    { label: 'Timestamp', value: act.time },
+                                    { label: 'Category', value: act.badge },
+                                    { label: 'Target Audience', value: act.badge2 || 'All Residents' }
+                                  ]
+                                );
+                              }}
+                              className="flex gap-3 relative pb-2 pt-1 px-2 border-b border-slate-50 last:border-0 last:pb-0 hover:bg-slate-50/80 rounded-xl cursor-pointer transition duration-150 active:scale-[0.99]"
+                            >
                               <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 bg-slate-50 border-slate-100`}>
                                 <span className="text-xs font-sans">📢</span>
                               </div>
@@ -4343,7 +4556,21 @@ export default function AdminDashboard() {
                               <td className="px-5 py-3.5">
                                 <div className="flex items-center gap-1.5">
                                   <button
-                                    onClick={() => alert(`Invoice: #${bill.invoice_id || bill.id}\nUnit: ${bill.block_name}-${bill.unit_number}\nResident: ${bill.resident_name || 'N/A'}\nAmount: LKR ${bill.amount}\nDescription: ${bill.description}\nDue: ${new Date(bill.due_date).toLocaleDateString()}\nStatus: ${bill.status.toUpperCase()}`)}
+                                    onClick={() => {
+                                      showPopup(
+                                        `Invoice Details: #${bill.invoice_id || bill.id}`,
+                                        `Detailed billing breakdown for Unit ${bill.block_name || ''}-${bill.unit_number || ''}`,
+                                        'info',
+                                        [
+                                          { label: 'Unit', value: `${bill.block_name || ''}-${bill.unit_number || ''}` },
+                                          { label: 'Resident', value: bill.resident_name || 'N/A' },
+                                          { label: 'Amount', value: `LKR ${Number(bill.amount).toLocaleString()}` },
+                                          { label: 'Description', value: bill.description || 'Monthly Maintenance' },
+                                          { label: 'Due Date', value: bill.due_date ? new Date(bill.due_date).toLocaleDateString() : 'N/A' },
+                                          { label: 'Payment Status', value: (bill.status || 'UNPAID').toUpperCase() }
+                                        ]
+                                      );
+                                    }}
                                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer transition"
                                     title="View"
                                   >
@@ -4641,10 +4868,17 @@ export default function AdminDashboard() {
                   )}
                   <button
                     onClick={() => {
-                      const emails = overdueList.map(o => o.resident_name).join(', ');
-                      alert(`Send Bulk Reminders\n\nWould notify ${overdueList.length} residents:\n${emails || 'None'}`);
+                      showPopup(
+                        "Bulk Reminders Dispatched",
+                        `Automated payment reminder notifications successfully sent to ${overdueList.length} resident(s) with pending balances.`,
+                        "success",
+                        overdueList.map(o => ({
+                          label: `${o.block_name || ''}-${o.unit_number || ''} (${o.resident_name || 'Resident'})`,
+                          value: `LKR ${parseFloat(o.amount || 0).toLocaleString()} • ${o.days_overdue} days overdue`
+                        }))
+                      );
                     }}
-                    className="mt-4 w-full py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition"
+                    className="mt-4 w-full py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition active:scale-95"
                   >
                     Send Bulk Reminders
                   </button>
@@ -4655,7 +4889,10 @@ export default function AdminDashboard() {
               <div className="bg-white border border-slate-200/60 rounded-2xl shadow-sm overflow-hidden">
                 <div className="flex justify-between items-center p-5 border-b border-slate-100">
                   <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Recent Payment Transactions</h3>
-                  <button className="flex items-center gap-1 text-[9px] font-bold text-blue-700 hover:underline cursor-pointer">
+                  <button 
+                    onClick={() => setShowFullHistoryModal(true)}
+                    className="flex items-center gap-1 text-[9px] font-bold text-blue-700 hover:underline cursor-pointer active:scale-95 transition"
+                  >
                     <Clock className="w-3 h-3" /> Full History
                   </button>
                 </div>
@@ -4839,10 +5076,7 @@ export default function AdminDashboard() {
                       onChange={(e) => setNewUserForm({ ...newUserForm, sub_role: e.target.value })}
                     >
                       <option value="">-- Select Sub Role --</option>
-                      <option value="junior_staff">Junior Staff</option>
-                      <option value="senior_staff">Senior Staff</option>
-                      <option value="staff_admin">Staff Admin</option>
-                      <option value="junior_manager">Junior Manager</option>
+                      <option value="admin_staff">Admin Staff</option>
                       <option value="senior_manager">Senior Manager</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-blue-400 pointer-events-none" />
@@ -6742,6 +6976,22 @@ export default function AdminDashboard() {
                     <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
                 </div>
+                {editUserForm.role === 'staff' && (
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-slate-500 block mb-1">Staff Sub Role <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <select
+                        className="w-full pl-3 pr-10 py-2 bg-blue-50 border border-blue-200 focus:border-blue-600 focus:bg-white outline-none rounded-lg text-xs font-medium appearance-none cursor-pointer"
+                        value={editUserForm.sub_role || 'admin_staff'}
+                        onChange={(e) => setEditUserForm({ ...editUserForm, sub_role: e.target.value })}
+                      >
+                        <option value="admin_staff">Admin Staff</option>
+                        <option value="senior_manager">Senior Manager</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-blue-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -6819,6 +7069,105 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* Full History Payment Transactions Modal */}
+      {showFullHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full p-6 max-h-[85vh] flex flex-col">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800">Complete Payment Transaction History</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Comprehensive audit trail of all recorded resident collections & transfers</p>
+              </div>
+              <button 
+                onClick={() => setShowFullHistoryModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between py-3 text-xs font-semibold text-slate-600 bg-slate-50 px-4 rounded-xl mt-4">
+              <span>Total Transactions: <strong className="text-slate-900">{transactions.length}</strong></span>
+              <span>Total Settled: <strong className="text-emerald-700">LKR {transactions.reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0).toLocaleString()}</strong></span>
+            </div>
+
+            <div className="overflow-y-auto mt-3 flex-1">
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
+                    <th className="py-2.5 px-3">Transaction ID</th>
+                    <th className="py-2.5 px-3">Invoice ID</th>
+                    <th className="py-2.5 px-3">Resident</th>
+                    <th className="py-2.5 px-3">Unit</th>
+                    <th className="py-2.5 px-3">Amount</th>
+                    <th className="py-2.5 px-3">Method</th>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {transactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400 italic">No transactions recorded.</td>
+                    </tr>
+                  ) : (
+                    transactions.map((tx) => (
+                      <tr key={tx.id || tx.transaction_id} className="hover:bg-slate-50/60">
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-800">#{tx.transaction_id || tx.id}</td>
+                        <td className="py-2.5 px-3 font-mono text-slate-500">#{tx.invoice_id || tx.bill_id || 'N/A'}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-700">{tx.resident_name || tx.payer_name || 'Resident'}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{tx.unit_number || tx.block_name ? `${tx.block_name || ''}-${tx.unit_number || ''}` : 'N/A'}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-800">LKR {Number(tx.amount || 0).toLocaleString()}</td>
+                        <td className="py-2.5 px-3 text-slate-500">{tx.payment_method || 'Online'}</td>
+                        <td className="py-2.5 px-3 text-slate-500">{tx.payment_date ? new Date(tx.payment_date).toLocaleDateString() : (tx.created_at ? new Date(tx.created_at).toLocaleDateString() : 'Recent')}</td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {tx.status || 'PAID'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setShowFullHistoryModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Details Modal */}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        user={user}
+        onLogout={logout}
+      />
+
+      {/* Notifications Drawer Modal */}
+      <NotificationsModal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+      />
+
+      {/* Global Alert / Info Popup Modal */}
+      <PopupModal
+        isOpen={popupModal.isOpen}
+        title={popupModal.title}
+        message={popupModal.message}
+        type={popupModal.type}
+        details={popupModal.details}
+        onClose={() => setPopupModal(prev => ({ ...prev, isOpen: false }))}
+      />
 
     </div>
   );

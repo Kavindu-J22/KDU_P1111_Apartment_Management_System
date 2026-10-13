@@ -6,6 +6,11 @@ import {
   Lock, Megaphone, ShieldAlert, ChevronDown, ChevronRight, Wrench, Edit3, Building, LogOut,
   Phone, AlertTriangle, Filter, Upload, CheckCircle, Circle, Loader2
 } from 'lucide-react';
+import ProfileModal from '../Common/ProfileModal';
+import NotificationsModal from '../Common/NotificationsModal';
+import PopupModal from '../Common/PopupModal';
+import GlobalSearchDropdown from '../Common/GlobalSearchDropdown';
+import { downloadFacilityRulesPDF, downloadParkingPolicyPDF, downloadPaymentReportPDF } from '../../utils/pdfGenerator';
 
 export default function ResidentDashboard() {
   const { api, user, logout } = useAuth();
@@ -13,6 +18,22 @@ export default function ResidentDashboard() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showGlobalSearchDrop, setShowGlobalSearchDrop] = useState(false);
+  const [paperlessEnabled, setPaperlessEnabled] = useState(false);
+  const [showAddPaymentMethodModal, setShowAddPaymentMethodModal] = useState(false);
+  const [newPaymentMethodForm, setNewPaymentMethodForm] = useState({ type: 'Card', nameOnCard: '', cardNumber: '', expiry: '', cvv: '' });
+  const [userPaymentMethods, setUserPaymentMethods] = useState([
+    { id: 1, type: 'Visa', last4: '4242', expires: '08/28', isDefault: true },
+    { id: 2, type: 'Bank', name: 'Direct Debit (HNB)', isDefault: false }
+  ]);
+  const [popupModal, setPopupModal] = useState({ isOpen: false, title: '', message: '', type: 'info', details: null });
+
+  const showPopup = (title, message, type = 'info', details = null) => {
+    setPopupModal({ isOpen: true, title, message, type, details });
+  };
 
   // Stats / Overview Data
   const [residentStats, setResidentStats] = useState(null);
@@ -255,6 +276,12 @@ export default function ResidentDashboard() {
       setBills(Array.isArray(data) ? data : (data.bills || []));
       setPaymentMetrics(data.metrics || {});
       setPaymentTransactions(Array.isArray(data.transactions) ? data.transactions : []);
+      try {
+        const statsRes = await api.get('/auth/resident-stats');
+        setResidentStats(statsRes.data);
+      } catch (stErr) {
+        console.warn('Non-critical stats refresh failed:', stErr);
+      }
       setTimeout(() => setSuccessMsg(''), 5000);
     } catch (error) {
       setErrorMsg(error.response?.data?.message || 'Payment failed. Please try again.');
@@ -466,26 +493,64 @@ export default function ResidentDashboard() {
         {/* 2. Top Bar */}
         <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-30">
           <div className="relative max-w-sm w-full">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 z-10" />
             <input
               type="text"
-              placeholder="Search for notices, payments, or help..."
+              placeholder="Search notices, bills, amenities, tickets..."
               className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-9 pr-4 py-1.5 text-xs outline-none text-slate-800 focus:border-blue-600 focus:bg-white transition-colors"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowGlobalSearchDrop(true);
+              }}
+              onFocus={() => setShowGlobalSearchDrop(true)}
+            />
+            <GlobalSearchDropdown
+              searchQuery={searchQuery}
+              isOpen={showGlobalSearchDrop}
+              onClose={() => setShowGlobalSearchDrop(false)}
+              userRole={user?.role || 'homeowner'}
+              onNavigate={(tab) => {
+                setShowGlobalSearchDrop(false);
+                setActiveTab(tab);
+              }}
+              onSelectResult={(item) => {
+                setShowGlobalSearchDrop(false);
+                if (item.type === 'bill') {
+                  setActiveTab('payments');
+                } else if (item.type === 'complaint') {
+                  setActiveTab('complaints');
+                } else if (item.type === 'notice') {
+                  setActiveTab('notices');
+                }
+              }}
             />
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="relative p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+            <button 
+              onClick={() => setShowNotificationsModal(true)}
+              className="relative p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer active:scale-95"
+              title="Notifications"
+            >
               <Bell className="w-4.5 h-4.5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
-            <button className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+            <button 
+              onClick={() => setShowEditProfileModal(true)}
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+              title="Settings"
+            >
               <Settings className="w-4.5 h-4.5" />
             </button>
             <div className="h-8 w-[1px] bg-slate-200"></div>
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+            <button 
+              onClick={() => setShowProfileModal(true)}
+              className="w-8 h-8 rounded-full bg-blue-100 hover:bg-blue-600 hover:text-white flex items-center justify-center text-blue-700 font-bold text-xs transition cursor-pointer active:scale-95"
+              title="View Personal Details"
+            >
               {displayName.charAt(0).toUpperCase()}
-            </div>
+            </button>
           </div>
         </header>
 
@@ -604,8 +669,19 @@ export default function ResidentDashboard() {
                               <p className="text-[10px] text-slate-400 font-medium font-sans leading-normal line-clamp-1">{n.content}</p>
                             </div>
                             <button 
-                              onClick={() => alert(`Announcement Details:\n\nTitle: ${n.title}\nDate: ${new Date(n.created_at).toLocaleDateString()}\nAuthor: ${n.author_email}\n\nContent:\n${n.content}`)}
-                              className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-800 text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm"
+                              onClick={() => {
+                                showPopup(
+                                  `Notice: ${n.title}`,
+                                  n.content || 'No details provided.',
+                                  'info',
+                                  [
+                                    { label: 'Category', value: categoryName },
+                                    { label: 'Published Date', value: n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Recent' },
+                                    { label: 'Author', value: n.author_email || 'AMS Management' }
+                                  ]
+                                );
+                              }}
+                              className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-800 text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm active:scale-95"
                             >
                               View Notice
                             </button>
@@ -712,8 +788,11 @@ export default function ResidentDashboard() {
                               <td className="py-3 text-right">
                                 {b.status === 'unpaid' ? (
                                   <button 
-                                    onClick={() => handlePayBill(b.id)}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm"
+                                    onClick={() => {
+                                      setSelectedBillToPay(b);
+                                      setShowPayModal(true);
+                                    }}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm active:scale-95"
                                   >
                                     Pay Now
                                   </button>
@@ -912,8 +991,20 @@ export default function ResidentDashboard() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
-                          onClick={() => alert('Emergency Guidelines:\n\n1. For life-threatening emergencies call 911\n2. For building emergencies call Daily Security: +1(555)000-9111\n3. For maintenance call: +1(555)000-9222\n4. Building Manager: +1(555)000-9333')}
-                          className="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer transition flex items-center gap-1.5"
+                          onClick={() => {
+                            showPopup(
+                              'Emergency Contact Guidelines',
+                              'In case of emergency, please reach out to the appropriate contact listed below:',
+                              'warning',
+                              [
+                                { label: 'Life-Threatening Emergency', value: 'Dial 911 / 119' },
+                                { label: 'Building Security (24/7)', value: '+1 (555) 000-9111' },
+                                { label: 'Maintenance Hotline', value: '+1 (555) 000-9222' },
+                                { label: 'Building Manager', value: '+1 (555) 000-9333' }
+                              ]
+                            );
+                          }}
+                          className="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer transition flex items-center gap-1.5 active:scale-95"
                         >
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                           View Emergency Guidelines
@@ -1914,7 +2005,13 @@ export default function ResidentDashboard() {
                         </li>
                       ))}
                     </ul>
-                    <button className="mt-4 w-full py-2 border border-blue-200 text-blue-600 text-[10px] font-bold rounded-lg cursor-pointer hover:bg-blue-50 transition flex items-center justify-center gap-1.5">
+                    <button 
+                      onClick={() => {
+                        downloadFacilityRulesPDF();
+                        showPopup("Rules Downloaded", "AMS Community Facility Usage & Reservation Rules downloaded as PDF.", "success");
+                      }}
+                      className="mt-4 w-full py-2 border border-blue-200 text-blue-600 text-[10px] font-bold rounded-lg cursor-pointer hover:bg-blue-50 transition flex items-center justify-center gap-1.5 active:scale-95"
+                    >
                       <FileText className="w-3 h-3" /> Rules PDF
                     </button>
                   </div>
@@ -1939,7 +2036,13 @@ export default function ResidentDashboard() {
                         </li>
                       ))}
                     </ul>
-                    <button className="mt-4 w-full py-2 border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                    <button 
+                      onClick={() => {
+                        downloadParkingPolicyPDF();
+                        showPopup("Policy Downloaded", "AMS Residential & Visitor Parking Guidelines downloaded as PDF.", "success");
+                      }}
+                      className="mt-4 w-full py-2 border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer hover:bg-slate-50 transition flex items-center justify-center gap-1.5 active:scale-95"
+                    >
                       <FileText className="w-3 h-3" /> Parking Policy PDF
                     </button>
                   </div>
@@ -2072,7 +2175,13 @@ export default function ResidentDashboard() {
                         <p className="text-[10px] text-slate-400 font-medium mt-0.5">View your invoices, make payments, and download receipts.</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer hover:bg-slate-50 transition">
+                        <button 
+                          onClick={() => {
+                            downloadPaymentReportPDF(user, bills, paymentTransactions, paymentMetrics);
+                            showPopup("Report Generated", "Billing & Payment History Summary downloaded as PDF.", "success");
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer hover:bg-slate-50 transition active:scale-95"
+                        >
                           <Upload className="w-3 h-3" /> Download Report
                         </button>
                         <button
@@ -2387,7 +2496,10 @@ export default function ResidentDashboard() {
                             <p className="text-[9px] text-slate-400 font-medium">Setup Direct Debit</p>
                           </div>
                         </div>
-                        <button className="w-full py-2 border border-dashed border-slate-300 text-slate-500 text-[10px] font-bold rounded-xl cursor-pointer hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                        <button 
+                          onClick={() => setShowAddPaymentMethodModal(true)}
+                          className="w-full py-2 border border-dashed border-slate-300 hover:border-blue-500 text-slate-500 hover:text-blue-600 text-[10px] font-bold rounded-xl cursor-pointer hover:bg-slate-50 transition flex items-center justify-center gap-1.5 active:scale-95"
+                        >
                           <Plus className="w-3 h-3" /> Add New Method
                         </button>
                       </div>
@@ -2403,9 +2515,25 @@ export default function ResidentDashboard() {
                         <p className="text-[10px] text-white/60 font-medium leading-relaxed mb-4">
                           Switch to digital receipts and save on maintenance fees.
                         </p>
-                        <button className="text-[10px] font-black text-blue-400 hover:text-blue-300 cursor-pointer transition flex items-center gap-1">
-                          Enable Now <ChevronRight className="w-3 h-3" />
-                        </button>
+                        {paperlessEnabled ? (
+                          <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1 bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-500/30 w-fit">
+                            ✓ Paperless Billing Active
+                          </span>
+                        ) : (
+                          <button 
+                            onClick={() => {
+                              setPaperlessEnabled(true);
+                              showPopup(
+                                "Paperless Billing Activated",
+                                "Eco-friendly paperless billing has been successfully enabled for your account. All future statements and receipts will be delivered digitally.",
+                                "success"
+                              );
+                            }}
+                            className="text-[10px] font-black text-blue-400 hover:text-blue-300 cursor-pointer transition flex items-center gap-1 active:scale-95"
+                          >
+                            Enable Now <ChevronRight className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -2559,8 +2687,19 @@ export default function ResidentDashboard() {
                               </div>
                             </div>
                             <button
-                              onClick={() => alert(`Notice Details:\n\nTitle: ${n.title}\nCategory: ${n.category}\nPriority: ${n.priority}\nAudience: ${n.audience}\n\nContent:\n${n.content}\n\nPublished: ${new Date(n.created_at).toLocaleDateString()}`)}
-                              className="shrink-0 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm"
+                              onClick={() => showPopup(
+                                `Notice: ${n.title}`,
+                                n.content || 'No content provided.',
+                                n.priority === 'urgent' ? 'warning' : 'info',
+                                [
+                                  { label: 'Category', value: categoryLabel },
+                                  { label: 'Priority', value: (n.priority || 'Normal').toUpperCase() },
+                                  { label: 'Audience', value: n.audience || 'All Residents' },
+                                  { label: 'Published', value: n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Recent' },
+                                  ...(n.expiry_date ? [{ label: 'Expires', value: new Date(n.expiry_date).toLocaleDateString() }] : [])
+                                ]
+                              )}
+                              className="shrink-0 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-[10px] font-bold rounded-lg cursor-pointer transition shadow-sm active:scale-95"
                             >
                               Read More
                             </button>
@@ -2636,6 +2775,14 @@ export default function ResidentDashboard() {
 
         </main>
       </div>
+
+      {/* Profile Details Modal */}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        user={user}
+        onLogout={logout}
+      />
 
       {/* 4. Edit Profile Modal */}
       {showEditProfileModal && (
