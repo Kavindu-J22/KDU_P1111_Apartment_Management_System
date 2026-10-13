@@ -13,8 +13,21 @@ const eventRoutes = require('./routes/eventRoutes');
 
 const app = express();
 
-// Middlewares
-app.use(cors());
+// CORS — allow localhost in dev, Vercel URL in production
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL, // set this to your Vercel URL in Render env vars
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow Postman / server-to-server calls (no origin) and listed origins
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: Origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Mount Routes
