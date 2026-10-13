@@ -95,17 +95,35 @@ export default function PopupModal({
             </p>
           )}
 
-          {details && typeof details === 'object' && (
+          {/* Array of { label, value } rows */}
+          {details && Array.isArray(details) && (
             <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl space-y-2 text-xs">
-              {Object.entries(details).map(([key, value]) => (
-                <div key={key} className="flex justify-between items-center text-[11px]">
-                  <span className="font-bold text-slate-400 capitalize">{key.replace(/_/g, ' ')}:</span>
-                  <span className="font-extrabold text-slate-700">{String(value)}</span>
+              {details.map((row, idx) => (
+                <div key={idx} className="flex justify-between items-start gap-3 text-[11px]">
+                  <span className="font-bold text-slate-400 capitalize shrink-0">{String(row.label ?? idx)}:</span>
+                  <span className="font-extrabold text-slate-700 text-right break-words max-w-[65%]">
+                    {row.value !== null && row.value !== undefined ? String(row.value) : '—'}
+                  </span>
                 </div>
               ))}
             </div>
           )}
 
+          {/* Plain key-value object */}
+          {details && !Array.isArray(details) && typeof details === 'object' && (
+            <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl space-y-2 text-xs">
+              {Object.entries(details).map(([key, value]) => (
+                <div key={key} className="flex justify-between items-start gap-3 text-[11px]">
+                  <span className="font-bold text-slate-400 capitalize shrink-0">{key.replace(/_/g, ' ')}:</span>
+                  <span className="font-extrabold text-slate-700 text-right break-words max-w-[65%]">
+                    {value !== null && value !== undefined ? String(value) : '—'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Plain string */}
           {details && typeof details === 'string' && (
             <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-700 whitespace-pre-line font-mono text-[11px]">
               {details}

@@ -2474,7 +2474,18 @@ export default function ResidentDashboard() {
                     <div className="bg-white border border-slate-200/60 rounded-2xl shadow-sm p-5">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-xs font-black text-slate-800">Payment Methods</h3>
-                        <span className="text-[10px] font-bold text-blue-600 cursor-pointer hover:underline">Manage</span>
+                        <button
+                          onClick={() => showPopup(
+                            'Manage Payment Methods',
+                            'Your registered payment methods are listed below. To remove or update a method, please contact the building management office.',
+                            'info',
+                            userPaymentMethods.map((m, i) => ({
+                              label: `Method ${i + 1}`,
+                              value: m.type + (m.last4 ? ` •••• ${m.last4}` : '') + (m.name ? ` (${m.name})` : '') + (m.isDefault ? ' — Default' : '')
+                            }))
+                          )}
+                          className="text-[10px] font-bold text-blue-600 cursor-pointer hover:underline"
+                        >Manage</button>
                       </div>
                       <div className="space-y-3">
                         <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -2783,6 +2794,162 @@ export default function ResidentDashboard() {
         user={user}
         onLogout={logout}
       />
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        role="resident"
+      />
+
+      {/* Global Popup / Alert Modal */}
+      <PopupModal
+        isOpen={popupModal.isOpen}
+        title={popupModal.title}
+        message={popupModal.message}
+        type={popupModal.type}
+        details={popupModal.details}
+        onClose={() => setPopupModal(p => ({ ...p, isOpen: false }))}
+      />
+
+      {/* Add New Payment Method Modal */}
+      {showAddPaymentMethodModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Add Payment Method</h3>
+              <button onClick={() => setShowAddPaymentMethodModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">Method Type</label>
+                <div className="relative">
+                  <select
+                    className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 rounded-lg text-xs font-medium appearance-none cursor-pointer"
+                    value={newPaymentMethodForm.type}
+                    onChange={(e) => setNewPaymentMethodForm({ ...newPaymentMethodForm, type: e.target.value })}
+                  >
+                    <option value="Card">Credit / Debit Card</option>
+                    <option value="Bank">Bank Transfer / Direct Debit</option>
+                    <option value="Online">Online Wallet (PayPal / Stripe)</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+              {newPaymentMethodForm.type === 'Card' && (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Name on Card</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. John Silva"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg text-xs font-medium"
+                      value={newPaymentMethodForm.nameOnCard}
+                      onChange={(e) => setNewPaymentMethodForm({ ...newPaymentMethodForm, nameOnCard: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5">Card Number</label>
+                    <input
+                      type="text"
+                      placeholder="•••• •••• •••• ••••"
+                      maxLength={19}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg text-xs font-medium font-mono tracking-widest"
+                      value={newPaymentMethodForm.cardNumber}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 16);
+                        const formatted = val.replace(/(\d{4})/g, '$1 ').trim();
+                        setNewPaymentMethodForm({ ...newPaymentMethodForm, cardNumber: formatted });
+                      }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1.5">Expiry (MM/YY)</label>
+                      <input
+                        type="text"
+                        placeholder="MM/YY"
+                        maxLength={5}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg text-xs font-medium"
+                        value={newPaymentMethodForm.expiry}
+                        onChange={(e) => setNewPaymentMethodForm({ ...newPaymentMethodForm, expiry: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1.5">CVV</label>
+                      <input
+                        type="password"
+                        placeholder="•••"
+                        maxLength={4}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg text-xs font-medium"
+                        value={newPaymentMethodForm.cvv}
+                        onChange={(e) => setNewPaymentMethodForm({ ...newPaymentMethodForm, cvv: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+              {newPaymentMethodForm.type === 'Bank' && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1.5">Bank Account / IBAN</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. LK82 0000 0000 0000 0000"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg text-xs font-medium"
+                    value={newPaymentMethodForm.nameOnCard}
+                    onChange={(e) => setNewPaymentMethodForm({ ...newPaymentMethodForm, nameOnCard: e.target.value })}
+                  />
+                </div>
+              )}
+              {newPaymentMethodForm.type === 'Online' && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1.5">Wallet Email</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. you@example.com"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600 outline-none text-slate-800 placeholder-slate-400/90 rounded-lg text-xs font-medium"
+                    value={newPaymentMethodForm.nameOnCard}
+                    onChange={(e) => setNewPaymentMethodForm({ ...newPaymentMethodForm, nameOnCard: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddPaymentMethodModal(false);
+                  setNewPaymentMethodForm({ type: 'Card', nameOnCard: '', cardNumber: '', expiry: '', cvv: '' });
+                }}
+                className="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-lg cursor-pointer transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const label = newPaymentMethodForm.type === 'Card'
+                    ? `${newPaymentMethodForm.type} •••• ${(newPaymentMethodForm.cardNumber || '').slice(-4) || '****'}`
+                    : newPaymentMethodForm.type === 'Bank' ? 'Bank Transfer' : 'Online Wallet';
+                  setUserPaymentMethods(prev => [...prev, { id: Date.now(), type: label, isDefault: false }]);
+                  setShowAddPaymentMethodModal(false);
+                  setNewPaymentMethodForm({ type: 'Card', nameOnCard: '', cardNumber: '', expiry: '', cvv: '' });
+                  showPopup(
+                    'Payment Method Added',
+                    `Your new ${newPaymentMethodForm.type} payment method has been saved successfully.`,
+                    'success'
+                  );
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg cursor-pointer transition shadow-sm"
+              >
+                Save Method
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Edit Profile Modal */}
       {showEditProfileModal && (
